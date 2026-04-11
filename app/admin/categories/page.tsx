@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
@@ -26,7 +26,7 @@ function slugify(name: string) {
     .slice(0, 100);
 }
 
-export default function CategoriesAdminPage() {
+function CategoriesAdminPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -312,5 +312,13 @@ export default function CategoriesAdminPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CategoriesAdminPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-slate-500">Loading…</div>}>
+      <CategoriesAdminPageInner />
+    </Suspense>
   );
 }
