@@ -18,11 +18,14 @@ const nav = [
       { href: "/admin/home/seo", label: "SEO Section" },
     ],
   },
+  
   { label: "Courses" },
   { label: "Categories" },
   { href: "/admin/coursespagecontent", label: "Courses Page Content" },
   { href: "/admin/categorypagecontent", label: "Category Page Content" },
   { href: "/admin/course-details", label: "Course Details" }, 
+  { href: "/admin/settings", label: "Settings" },
+  
   { href: "/admin/blog", label: "Blog" },
   { href: "/admin/instructor", label: "Instructor" },
   { href: "/admin/applications", label: "Applications" },
@@ -35,6 +38,7 @@ const nav = [
       { href: "/admin/pages/about", label: "About Page" },
       { href: "/admin/pages/contact", label: "Contact Page" },
     ],
+  
   }
   
     
@@ -72,6 +76,7 @@ export default function Sidebar() {
     Blog: false,
     Instructor: false,
     Pages: false,
+    
   });
   const [categories, setCategories] = useState<Category[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);

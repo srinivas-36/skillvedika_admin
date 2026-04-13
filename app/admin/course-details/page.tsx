@@ -15,6 +15,7 @@ import {
 import { apiUrl } from "@/lib/api";
 import { authHeadersBearer, authHeadersJson, getAccessToken } from "@/lib/auth";
 import { parseApiError } from "@/lib/cms-errors";
+import TipTapEditor from "@/components/editor/TipTapEditor";
 
 type Course = { id: number; title: string; slug: string };
 type AnyObj = Record<string, unknown>;
@@ -164,7 +165,7 @@ export default function AdminCourseDetailsPage() {
     blogs_heading: "",
     faqs_heading: "",
   });
-
+  const [activeSection, setActiveSection] = useState<string | null>(null);
   const [courseDetails, setCourseDetails] = useState<AnyObj | null>(null);
   const [sections, setSections] = useState<Record<SectionName, AnyObj[]>>({
     about: [],
@@ -983,20 +984,37 @@ export default function AdminCourseDetailsPage() {
                       <div key={field.key}>
                         <label className={fieldLabel}>{field.label}</label>
                         {field.type === "textarea" ? (
-                          <textarea
-                            className={textareaClass}
-                            rows={3}
-                            value={String(form[field.key] ?? "")}
-                            onChange={(e) =>
-                              setFormBySection((prev) => ({
-                                ...prev,
-                                [section]: {
-                                  ...prev[section],
-                                  [field.key]: e.target.value,
-                                },
-                              }))
-                            }
-                          />
+                          section === "about" ||
+                          section === "curriculum" ||
+                          section === "placement-support" ? (
+                            <TipTapEditor
+                              value={String(form[field.key] ?? "")}
+                              onChange={(val: string) =>
+                                setFormBySection((prev) => ({
+                                  ...prev,
+                                  [section]: {
+                                    ...prev[section],
+                                    [field.key]: val,
+                                  },
+                                }))
+                              }
+                            />
+                          ) : (
+                            <textarea
+                              className={textareaClass}
+                              rows={3}
+                              value={String(form[field.key] ?? "")}
+                              onChange={(e) =>
+                                setFormBySection((prev) => ({
+                                  ...prev,
+                                  [section]: {
+                                    ...prev[section],
+                                    [field.key]: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+                          )
                         ) : field.type === "checkbox" ? (
                           <label className="inline-flex items-center gap-2 text-sm text-slate-700">
                             <input

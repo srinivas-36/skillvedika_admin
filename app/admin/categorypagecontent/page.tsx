@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { HomeEditorShell, EditorPanel, btnDanger, btnPrimary, btnSecondary, fieldLabel, inputClass, textareaClass } from "@/components/admin/HomeEditorShell";
 import { apiUrl, getCategories, type CategoryApi } from "@/lib/api";
+import TipTapEditor from "@/components/editor/TipTapEditor";
 
 type FaqItem = { question: string; answer: string };
 type CtaButton = { text: string; link: string };
@@ -462,14 +463,16 @@ export default function AdminCategoryPageContent() {
         <div className="mt-5 space-y-3">
           <div className="text-sm font-semibold text-slate-700">Features / Points</div>
           {form.why_points.map((p, idx) => (
-            <div key={`why-${idx}`} className="flex gap-2">
-              <input
-                className={inputClass}
+            <div key={`why-${idx}`} className="space-y-2">
+              <TipTapEditor
                 value={p}
-                placeholder={`Point ${idx + 1}`}
-                onChange={(e) => updateWhyPoint(idx, e.target.value)}
+                onChange={(value: string) => updateWhyPoint(idx, value)}
               />
-              <button type="button" className={btnDanger} onClick={() => removeWhyPoint(idx)}>
+              <button
+                type="button"
+                className={btnDanger}
+                onClick={() => removeWhyPoint(idx)}
+              >
                 Remove
               </button>
             </div>

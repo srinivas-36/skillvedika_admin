@@ -12,6 +12,7 @@ import {
   textareaClass,
 } from "@/components/admin/HomeEditorShell";
 import { apiUrl } from "@/lib/api";
+import TipTapEditor from "@/components/editor/TipTapEditor";
 import {
   authHeadersBearer,
   authHeadersJson,
@@ -444,7 +445,7 @@ export default function AdminCorporateTrainingPage() {
           <div><label className={fieldLabel}>Section Heading</label><input className={inputClass} value={sectionContent.empower_title} onChange={(e) => setSectionContent((x) => ({ ...x, empower_title: e.target.value }))} /></div>
           <div><label className={fieldLabel}>Section Subheading</label><textarea className={textareaClass} rows={3} value={sectionContent.empower_subtitle} onChange={(e) => setSectionContent((x) => ({ ...x, empower_subtitle: e.target.value }))} /></div>
           <div><label className={fieldLabel}>Title</label><input className={inputClass} value={empower.title} onChange={(e) => setEmpower((x) => ({ ...x, title: e.target.value }))} /></div>
-          <div><label className={fieldLabel}>Description</label><textarea className={textareaClass} rows={4} value={empower.description} onChange={(e) => setEmpower((x) => ({ ...x, description: e.target.value }))} /></div>
+          <div><label className={fieldLabel}>Description</label><TipTapEditor value={empower.description} onChange={(value: string) => setEmpower((x) => ({ ...x, description: value }))} /></div>
           <div>
             <label className={fieldLabel}>Empower Image</label>
             <input type="file" accept="image/*" onChange={(e) => setEmpowerImageFile(e.target.files?.[0] ?? null)} className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-[var(--admin-accent)] file:px-3 file:py-2 file:text-white file:font-semibold" />

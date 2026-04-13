@@ -34,3 +34,24 @@ body.admin-body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+
+.ProseMirror {
+  line-height: 1.7;
+}
+
+/* Word-like document margin */
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 2rem;
+  margin: 0.75rem 0;
+}
+
+.ProseMirror li {
+  margin: 0.25rem 0;
+}
+
+/* Paragraph spacing like Word */
+.ProseMirror p {
+  margin: 0.5rem 0;
+}

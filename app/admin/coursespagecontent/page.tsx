@@ -8,6 +8,7 @@ import {
   type InputHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
+import TipTapEditor from "@/components/editor/TipTapEditor";
 
 const API = `${process.env.NEXT_PUBLIC_API_URL}/api/courses/courses-page-content/`;
 
@@ -384,18 +385,7 @@ export default function CoursesPageContentAdmin() {
 
       <Section title="Why learn / invest">
         <Input name="why_title" value={form.why_title} onChange={handleChange} placeholder="Section title" />
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-slate-600">
-            Bullet points (one per line, or paste JSON array)
-          </label>
-          <Textarea
-            name="why_points_text"
-            value={form.why_points_text}
-            onChange={handleChange}
-            placeholder={"Point one\nPoint two"}
-            rows={6}
-          />
-        </div>
+        <TipTapEditor value={form.why_points_text} onChange={(html) => setForm((f) => ({ ...f, why_points_text: html }))} placeholder="Why points" />
         <SaveRow>
           <SaveButton disabled={saving !== null} onClick={() => void saveSection("why")}>
             {saving === "why" ? "Saving…" : "Save Why section"}

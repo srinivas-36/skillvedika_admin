@@ -154,11 +154,22 @@ export default function TipTapEditor({
       FontSize,
     ],
     content: htmlFromProps || "",
+    // editorProps: {
+    //   attributes: {
+    //     class:
+    //       "min-h-[260px] p-4 prose prose-slate max-w-none focus:outline-none",
+    //     style: `font-family: ${FONT_FAMILY}, sans-serif;`,
+    //   },
+    // },
+
     editorProps: {
       attributes: {
         class:
-          "min-h-[260px] p-4 prose prose-slate max-w-none focus:outline-none",
-        style: `font-family: ${FONT_FAMILY}, sans-serif;`,
+          "min-h-[260px] prose prose-slate max-w-none focus:outline-none",
+        style: `
+          font-family: ${FONT_FAMILY}, sans-serif;
+          padding: 24px 40px;
+        `,
       },
     },
     onUpdate: ({ editor: currentEditor }) => {
