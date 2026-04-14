@@ -877,11 +877,13 @@ export default function AdminCourseDetailsPage() {
           </div>
 
           {SECTIONS.map((section) => {
+            console.log("section ::: ",section)
             const fields = SECTION_FIELDS[section];
             const items = sections[section] ?? [];
             const editingId = editingBySection[section];
             const form = formBySection[section];
 
+            console.log("items :: ",items)
             return (
               <EditorPanel
                 key={section}
@@ -925,12 +927,18 @@ export default function AdminCourseDetailsPage() {
                                     {f.label}
                                   </span>
                                   <span className="whitespace-pre-wrap break-words text-slate-800">
-                                    {f.type === "checkbox"
-                                      ? Boolean(item[f.key])
-                                        ? "Yes"
-                                        : "No"
-                                      : String(item[f.key] ?? "—")}
-                                  </span>
+  {f.type === "checkbox" ? (
+    Boolean(item[f.key]) ? "Yes" : "No"
+  ) : f.key === "content" ? (
+    <div
+      dangerouslySetInnerHTML={{
+        __html: String(item[f.key] ?? ""),
+      }}
+    />
+  ) : (
+    String(item[f.key] ?? "—")
+  )}
+</span>
                                 </div>
                               ))}
                             </div>
