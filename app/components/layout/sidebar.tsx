@@ -37,6 +37,8 @@ const nav = [
       { href: "/admin/pages/corporate-training", label: "Corporate Training Page" },
       { href: "/admin/pages/about", label: "About Page" },
       { href: "/admin/pages/contact", label: "Contact Page" },
+      { href: "/admin/pages/terms-conditions", label: "Terms & Conditions Page" },
+      { href: "/admin/pages/privacy-policy", label: "Privacy Policy Page" },
     ],
   
   }

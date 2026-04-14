@@ -6,8 +6,9 @@ import { apiUrl } from "@/lib/api";
 import { authHeadersBearer, authHeadersJson, authHeadersMultipart, getAccessToken } from "@/lib/auth";
 import { parseApiError } from "@/lib/cms-errors";
 import { HomeEditorShell, EditorPanel, btnDanger, btnPrimary, fieldLabel, inputClass, textareaClass } from "@/components/admin/HomeEditorShell";
+import TipTapEditor from "@/components/editor/TipTapEditor";
 
-type FieldType = "text" | "textarea" | "url" | "number" | "json" | "file" | "string_list" | "feature_list" | "select";
+type FieldType = "text" | "textarea" | "richtext" | "url" | "number" | "json" | "file" | "string_list" | "feature_list" | "select";
 type FieldDef = {
   key: string;
   label: string;
@@ -574,6 +575,20 @@ export default function MultiSectionCmsEditor({ title, subtitle, sections }: Pro
                         Add feature
                       </button>
                     </div>
+                  ) : f.type === "richtext" ? (
+                    <TipTapEditor
+                      value={typeof state.form[f.key] === "string" ? (state.form[f.key] as string) : ""}
+                      onChange={(html) =>
+                        setSingletons((prev) => ({
+                          ...prev,
+                          [section.key]: {
+                            ...prev[section.key],
+                            form: { ...prev[section.key].form, [f.key]: html },
+                          },
+                        }))
+                      }
+                      placeholder={f.placeholder}
+                    />
                   ) : f.type === "textarea" || f.type === "json" ? (
                     <textarea
                       className={textareaClass}
@@ -677,7 +692,21 @@ export default function MultiSectionCmsEditor({ title, subtitle, sections }: Pro
                         {section.fields.map((f) => (
                           <div key={f.key}>
                             <label className={fieldLabel}>{f.label}</label>
-                            {f.type === "textarea" || f.type === "json" ? (
+                            {f.type === "richtext" ? (
+                              <TipTapEditor
+                                value={typeof state.editingForm[f.key] === "string" ? (state.editingForm[f.key] as string) : ""}
+                                onChange={(html) =>
+                                  setLists((prev) => ({
+                                    ...prev,
+                                    [section.key]: {
+                                      ...prev[section.key],
+                                      editingForm: { ...prev[section.key].editingForm, [f.key]: html },
+                                    },
+                                  }))
+                                }
+                                placeholder={f.placeholder}
+                              />
+                            ) : f.type === "textarea" || f.type === "json" ? (
                               <textarea
                                 className={textareaClass}
                                 rows={f.type === "json" ? 6 : 3}
@@ -958,6 +987,20 @@ export default function MultiSectionCmsEditor({ title, subtitle, sections }: Pro
                             Add feature
                           </button>
                         </div>
+                      ) : f.type === "richtext" ? (
+                        <TipTapEditor
+                          value={typeof state.draft[f.key] === "string" ? (state.draft[f.key] as string) : ""}
+                          onChange={(html) =>
+                            setLists((prev) => ({
+                              ...prev,
+                              [section.key]: {
+                                ...prev[section.key],
+                                draft: { ...prev[section.key].draft, [f.key]: html },
+                              },
+                            }))
+                          }
+                          placeholder={f.placeholder}
+                        />
                       ) : f.type === "textarea" || f.type === "json" ? (
                         <textarea
                           className={textareaClass}
