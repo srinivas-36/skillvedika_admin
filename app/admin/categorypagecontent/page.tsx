@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { HomeEditorShell, EditorPanel, btnDanger, btnPrimary, btnSecondary, fieldLabel, inputClass, textareaClass } from "@/components/admin/HomeEditorShell";
 import { apiUrl, getCategories, type CategoryApi } from "@/lib/api";
@@ -88,7 +88,7 @@ function fromApi(data: Record<string, unknown>): CategoryPageForm {
   };
 }
 
-export default function AdminCategoryPageContent() {
+function AdminCategoryPageContentInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -624,5 +624,19 @@ export default function AdminCategoryPageContent() {
         {saving ? "Saving..." : "Save Category Page Content"}
       </button>
     </HomeEditorShell>
+  );
+}
+
+export default function AdminCategoryPageContent() {
+  return (
+    <Suspense
+      fallback={
+        <HomeEditorShell title="Category page content" subtitle="Loading…">
+          <p className="text-sm text-slate-500">Loading…</p>
+        </HomeEditorShell>
+      }
+    >
+      <AdminCategoryPageContentInner />
+    </Suspense>
   );
 }

@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 const API = `${process.env.NEXT_PUBLIC_API_URL}/api/courses/`;
@@ -48,7 +48,7 @@ function slugify(title: string) {
 
 }
 
-export default function CoursesAdminPage() {
+function CoursesAdminPageInner() {
   const searchParams = useSearchParams();
   const [courses, setCourses] = useState<Course[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -524,5 +524,13 @@ export default function CoursesAdminPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CoursesAdminPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-slate-500">Loading…</div>}>
+      <CoursesAdminPageInner />
+    </Suspense>
   );
 }

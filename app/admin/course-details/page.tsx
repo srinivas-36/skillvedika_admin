@@ -592,7 +592,7 @@ export default function AdminCourseDetailsPage() {
       ...prev,
       [section]: typeof item.id === "number" ? item.id : null,
     }));
-    setActiveSection(section);
+    scrollToEl(`course-details-${section}`);
   }
 
   async function handleDelete(section: SectionName, itemId: number) {
