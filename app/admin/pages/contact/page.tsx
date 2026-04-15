@@ -55,7 +55,7 @@ export default function AdminContactPage() {
           fields: [
             { key: "title", label: "Title", required: true },
             { key: "subtitle", label: "Subtitle", type: "textarea" },
-            { key: "points", label: "Points (JSON array)", type: "json" },
+            { key: "points", label: "Points", type: "string_list" },
           ],
         },
         {

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { apiUrl } from "@/lib/api";
 
 const nav = [
   { href: "/admin/dashboard", label: "Dashboard" },
@@ -53,6 +54,7 @@ const linkBase =
   "block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150";
 const linkIdle = "text-slate-400 hover:bg-[var(--admin-sidebar-hover)] hover:text-white";
 const linkActive = "bg-[var(--admin-accent)] text-white shadow-md shadow-blue-950/40";
+const MEDIA_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
 type Category = {
   id: number;
@@ -84,6 +86,10 @@ export default function Sidebar() {
   });
   const [categories, setCategories] = useState<Category[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [branding, setBranding] = useState<{ brand_name: string; logo: string | null }>({
+    brand_name: "SkillVedika",
+    logo: null,
+  });
 
   const loadData = useCallback(async () => {
     try {
@@ -106,6 +112,29 @@ export default function Sidebar() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const loadBranding = async () => {
+      try {
+        const res = await fetch(apiUrl("/api/home/branding/"), { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json().catch(() => ({}))) as {
+          brand_name?: unknown;
+          logo?: unknown;
+        };
+        setBranding({
+          brand_name:
+            typeof data.brand_name === "string" && data.brand_name.trim()
+              ? data.brand_name.trim()
+              : "SkillVedika",
+          logo: typeof data.logo === "string" && data.logo.trim() ? data.logo : null,
+        });
+      } catch {
+        setBranding((prev) => prev);
+      }
+    };
+    void loadBranding();
+  }, []);
 
   useEffect(() => {
     // Open parent menus based on current path.
@@ -172,6 +201,13 @@ export default function Sidebar() {
   const toggleMenu = (label: string) =>
     setOpenMenus((prev) => ({ ...prev, [label]: !prev[label] }));
 
+  const logoSrc =
+    typeof branding.logo === "string" && branding.logo.trim()
+      ? branding.logo.startsWith("http")
+        ? branding.logo
+        : `${MEDIA_BASE}${branding.logo.startsWith("/") ? branding.logo : `/${branding.logo}`}`
+      : null;
+
   const isActiveMenuButton = (label: string) => {
     if (label === "Courses") return pathname.startsWith("/admin/courses");
     if (label === "Categories") return pathname.startsWith("/admin/categories");
@@ -185,11 +221,19 @@ export default function Sidebar() {
     >
       <div className="border-b border-[var(--admin-sidebar-border)] px-4 py-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--admin-accent)] text-sm font-bold text-white shadow-lg shadow-blue-950/30">
-            SV
-          </div>
+          {logoSrc ? (
+            <img
+              src={`${logoSrc}?v=${encodeURIComponent(branding.brand_name || "logo")}`}
+              alt={`${branding.brand_name} logo`}
+              className="h-12 w-auto max-w-[130px] rounded-md bg-white object-contain p-1 shadow-lg shadow-blue-950/20"
+            />
+          ) : (
+            <div className="text-sm font-bold tracking-tight text-white">{branding.brand_name}</div>
+          )}
           <div>
-            <div className="text-sm font-bold tracking-tight text-white">SkillVedika</div>
+            {!logoSrc ? (
+              <div className="text-sm font-bold tracking-tight text-white">{branding.brand_name}</div>
+            ) : null}
             <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
               Admin
             </div>

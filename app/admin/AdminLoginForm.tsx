@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "@/lib/api";
-import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from "@/lib/auth";
+import { ACCESS_TOKEN_KEY, ADMIN_IDENTIFIER_KEY, REFRESH_TOKEN_KEY } from "@/lib/auth";
 
 export default function AdminLoginForm() {
   const router = useRouter();
@@ -49,6 +49,7 @@ export default function AdminLoginForm() {
 
       localStorage.setItem(ACCESS_TOKEN_KEY, data.access);
       localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh);
+      localStorage.setItem(ADMIN_IDENTIFIER_KEY, identifier.trim());
       router.replace("/admin/dashboard");
     } catch {
       setError(
