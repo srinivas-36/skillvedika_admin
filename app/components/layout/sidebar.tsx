@@ -39,6 +39,8 @@ const nav = [
       { href: "/admin/pages/contact", label: "Contact Page" },
       { href: "/admin/pages/terms-conditions", label: "Terms & Conditions Page" },
       { href: "/admin/pages/privacy-policy", label: "Privacy Policy Page" },
+      { href: "/admin/pages/disclaimer", label: "Disclaimer Page" },
+      { href: "/admin/pages/editorial-policy", label: "Editorial Policy Page" },
     ],
   
   }
