@@ -17,6 +17,18 @@ import { apiUrl } from "@/lib/api";
 import { authHeadersBearer, authHeadersJson, getAccessToken } from "@/lib/auth";
 import { parseApiError } from "@/lib/cms-errors";
 
+const iconOptions = [
+  { label: "No icon", value: "" },
+  { label: "💻 Laptop", value: "💻" },
+  { label: "🧑‍💻 Developer", value: "🧑‍💻" },
+  { label: "⚡ Fast", value: "⚡" },
+  { label: "📈 Growth", value: "📈" },
+  { label: "🎯 Target", value: "🎯" },
+  { label: "🛠 Tools", value: "🛠" },
+  { label: "📊 Analytics", value: "📊" },
+  { label: "🔧 Support", value: "🔧" },
+];
+
 export default function AdminWhyChoosePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -252,8 +264,14 @@ export default function AdminWhyChoosePage() {
               <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className={fieldLabel}>Icon (1–2 chars)</label>
-              <input value={newIcon} onChange={(e) => setNewIcon(e.target.value)} className={inputClass} maxLength={8} />
+              <label className={fieldLabel}>Icon</label>
+              <select value={newIcon} onChange={(e) => setNewIcon(e.target.value)} className={inputClass}>
+                {iconOptions.map((opt) => (
+                  <option key={opt.value || "none"} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="sm:col-span-2">
               <label className={fieldLabel}>Description</label>
@@ -306,7 +324,13 @@ function WhyRow({
         </div>
         <div className="sm:col-span-1">
           <label className={fieldLabel}>Icon</label>
-          <input value={icon} onChange={(e) => setIcon(e.target.value)} className={inputClass} maxLength={8} />
+          <select value={icon} onChange={(e) => setIcon(e.target.value)} className={inputClass}>
+            {iconOptions.map((opt) => (
+              <option key={opt.value || "none"} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="sm:col-span-3">
           <label className={fieldLabel}>Description</label>

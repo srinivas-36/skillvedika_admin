@@ -43,19 +43,6 @@ type FormSection = {
   submit_button_text: string;
 };
 
-type InstructorApplication = {
-  id: number;
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  years_of_experience: string;
-  skills: string;
-  message: string;
-  agreed_to_terms: boolean;
-  created_at: string;
-};
-
 const emptyHero: Hero = {
   title: "",
   subtitle: "",
@@ -94,28 +81,22 @@ export default function AdminInstructorPage() {
   const [featureDraft, setFeatureDraft] = useState<Feature>(emptyFeature());
   const [cta, setCta] = useState<Cta>(emptyCta);
   const [formSection, setFormSection] = useState<FormSection>(emptyFormSection);
-  const [applications, setApplications] = useState<InstructorApplication[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [heroRes, featuresRes, ctaRes, formRes, applicationsRes] = await Promise.all([
+      const [heroRes, featuresRes, ctaRes, formRes] = await Promise.all([
         fetch(apiUrl("/api/instructor/hero/"), { cache: "no-store" }),
         fetch(apiUrl("/api/instructor/features/"), { cache: "no-store" }),
         fetch(apiUrl("/api/instructor/cta/"), { cache: "no-store" }),
         fetch(apiUrl("/api/instructor/form/"), { cache: "no-store" }),
-        fetch(apiUrl("/api/instructor/applications/"), {
-          cache: "no-store",
-          headers: authHeadersBearer(),
-        }),
       ]);
-      const [heroJson, featuresJson, ctaJson, formJson, applicationsJson] = await Promise.all([
+      const [heroJson, featuresJson, ctaJson, formJson] = await Promise.all([
         heroRes.json().catch(() => []),
         featuresRes.json().catch(() => []),
         ctaRes.json().catch(() => []),
         formRes.json().catch(() => []),
-        applicationsRes.json().catch(() => []),
       ]);
       const firstHero = Array.isArray(heroJson) ? heroJson[0] : null;
       const firstCta = Array.isArray(ctaJson) ? ctaJson[0] : null;
@@ -133,14 +114,12 @@ export default function AdminInstructorPage() {
         ...emptyFormSection,
         ...(firstForm ?? {}),
       });
-      setApplications(Array.isArray(applicationsJson) ? applicationsJson : []);
     } catch {
       setError("Could not load instructor CMS data.");
       setHero(emptyHero);
       setFeatures([]);
       setCta(emptyCta);
       setFormSection(emptyFormSection);
-      setApplications([]);
     } finally {
       setLoading(false);
     }
@@ -377,36 +356,6 @@ export default function AdminInstructorPage() {
               <input className={inputClass} value={formSection.submit_button_text} onChange={(e) => setFormSection((f) => ({ ...f, submit_button_text: e.target.value }))} />
             </div>
           </div>
-        </EditorPanel>
-
-        <EditorPanel title="Submitted Applications">
-          {applications.length === 0 ? (
-            <p className="text-sm text-slate-500">No applications submitted yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {applications.map((app) => (
-                <div key={app.id} className="rounded-xl border border-slate-200 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-semibold text-slate-900">
-                      {app.first_name} {app.last_name}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {new Date(app.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="mt-2 grid gap-1 text-sm text-slate-700">
-                    <p><span className="font-medium">Email:</span> {app.email}</p>
-                    <p><span className="font-medium">Phone:</span> {app.phone}</p>
-                    <p><span className="font-medium">Experience:</span> {app.years_of_experience}</p>
-                    <p><span className="font-medium">Skills:</span> {app.skills}</p>
-                    {app.message ? (
-                      <p><span className="font-medium">Message:</span> {app.message}</p>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </EditorPanel>
 
         <button type="submit" className={btnPrimary} disabled={saving}>

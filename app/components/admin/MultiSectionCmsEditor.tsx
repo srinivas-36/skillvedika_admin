@@ -595,6 +595,7 @@ export default function MultiSectionCmsEditor({ title, subtitle, sections }: Pro
                       rows={f.type === "json" ? 6 : 4}
                       value={typeof state.form[f.key] === "string" ? (state.form[f.key] as string) : ""}
                       placeholder={f.placeholder}
+                      style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                       onChange={(e) =>
                         setSingletons((prev) => ({
                           ...prev,
@@ -685,7 +686,10 @@ export default function MultiSectionCmsEditor({ title, subtitle, sections }: Pro
           <EditorPanel key={section.key} title={section.title}>
             <div className="space-y-3">
               {state.items.map((item, idx) => (
-                <div key={typeof item.id === "number" ? item.id : idx} className="rounded-xl border border-slate-200 p-3">
+                <div
+                  key={typeof item.id === "number" ? item.id : idx}
+                  className="rounded-xl border border-slate-200 p-3 overflow-x-hidden"
+                >
                   <div className="flex items-start justify-between gap-3">
                     {state.editingId === item.id ? (
                       <div className="min-w-0 flex-1 space-y-3">
@@ -712,6 +716,7 @@ export default function MultiSectionCmsEditor({ title, subtitle, sections }: Pro
                                 rows={f.type === "json" ? 6 : 3}
                                 value={typeof state.editingForm[f.key] === "string" ? (state.editingForm[f.key] as string) : ""}
                                 placeholder={f.placeholder}
+                                style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                                 onChange={(e) =>
                                   setLists((prev) => ({
                                     ...prev,
@@ -795,13 +800,14 @@ export default function MultiSectionCmsEditor({ title, subtitle, sections }: Pro
                     ) : (
                       <div className="min-w-0 text-sm text-slate-700">
                         {section.fields.map((f) => (
-                          <p key={f.key} className="truncate">
-                            <span className="font-semibold">{f.label}:</span> {toStringValue(item[f.key]) || "-"}
+                          <p key={f.key} className="break-words">
+                            <span className="font-semibold">{f.label}:</span>{" "}
+                            <span className="break-all">{toStringValue(item[f.key]) || "-"}</span>
                           </p>
                         ))}
                       </div>
                     )}
-                    <div className="flex flex-col gap-2">
+                    <div className="flex shrink-0 flex-col gap-2">
                       {state.editingId === item.id ? (
                         <>
                           <button
@@ -1007,6 +1013,7 @@ export default function MultiSectionCmsEditor({ title, subtitle, sections }: Pro
                           rows={f.type === "json" ? 6 : 3}
                           value={typeof state.draft[f.key] === "string" ? (state.draft[f.key] as string) : ""}
                           placeholder={f.placeholder}
+                          style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                           onChange={(e) =>
                             setLists((prev) => ({
                               ...prev,

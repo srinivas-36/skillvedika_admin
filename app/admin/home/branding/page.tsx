@@ -9,11 +9,19 @@ type BrandingForm = {
   id?: number;
   // brand_name: string;
   logo: string | null;
+  facebook_url: string;
+  instagram_url: string;
+  linkedin_url: string;
+  youtube_url: string;
 };
 
 const emptyForm: BrandingForm = {
   // brand_name: "SkillVedika",
   logo: null,
+  facebook_url: "",
+  instagram_url: "",
+  linkedin_url: "",
+  youtube_url: "",
 };
 
 function formFromApi(json: Record<string, unknown>): BrandingForm {
@@ -21,8 +29,11 @@ function formFromApi(json: Record<string, unknown>): BrandingForm {
   return {
     id: typeof json.id === "number" ? json.id : undefined,
     // brand_name: typeof json.brand_name === "string" ? json.brand_name : "SkillVedika",
-    
     logo: typeof json.logo === "string" ? json.logo : null,
+    facebook_url: typeof json.facebook_url === "string" ? json.facebook_url : "",
+    instagram_url: typeof json.instagram_url === "string" ? json.instagram_url : "",
+    linkedin_url: typeof json.linkedin_url === "string" ? json.linkedin_url : "",
+    youtube_url: typeof json.youtube_url === "string" ? json.youtube_url : "",
   };
 }
 
@@ -73,8 +84,11 @@ export default function AdminBrandingPage() {
       if (logoFile) {
         const fd = new FormData();
         // fd.append("brand_name", form.brand_name.trim() || "SkillVedika");
-
         fd.append("logo", logoFile);
+        fd.append("facebook_url", form.facebook_url.trim());
+        fd.append("instagram_url", form.instagram_url.trim());
+        fd.append("linkedin_url", form.linkedin_url.trim());
+        fd.append("youtube_url", form.youtube_url.trim());
         res = await fetch(url, {
           method,
           headers: authHeadersMultipart(),
@@ -85,7 +99,12 @@ export default function AdminBrandingPage() {
           method,
           headers: authHeadersJson(),
           // body: JSON.stringify({ brand_name: form.brand_name.trim() || "SkillVedika" }),
-          body: JSON.stringify({}),
+          body: JSON.stringify({
+            facebook_url: form.facebook_url.trim(),
+            instagram_url: form.instagram_url.trim(),
+            linkedin_url: form.linkedin_url.trim(),
+            youtube_url: form.youtube_url.trim(),
+          }),
         });
       }
 
@@ -163,6 +182,42 @@ export default function AdminBrandingPage() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={form.logo} alt="Current logo" className="mt-3 h-12 w-auto rounded bg-white p-1 border border-slate-200" />
           ) : null}
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-slate-700">Facebook URL</label>
+          <input
+            className={field}
+            value={form.facebook_url}
+            onChange={(e) => setForm((f) => ({ ...f, facebook_url: e.target.value }))}
+            placeholder="https://facebook.com/your-page"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-slate-700">Instagram URL</label>
+          <input
+            className={field}
+            value={form.instagram_url}
+            onChange={(e) => setForm((f) => ({ ...f, instagram_url: e.target.value }))}
+            placeholder="https://instagram.com/your-page"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-slate-700">LinkedIn URL</label>
+          <input
+            className={field}
+            value={form.linkedin_url}
+            onChange={(e) => setForm((f) => ({ ...f, linkedin_url: e.target.value }))}
+            placeholder="https://linkedin.com/company/your-company"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-slate-700">YouTube URL</label>
+          <input
+            className={field}
+            value={form.youtube_url}
+            onChange={(e) => setForm((f) => ({ ...f, youtube_url: e.target.value }))}
+            placeholder="https://youtube.com/@your-channel"
+          />
         </div>
 
         <button

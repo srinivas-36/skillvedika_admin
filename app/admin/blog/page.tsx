@@ -253,8 +253,8 @@ export default function AdminBlogPage() {
       setError("Slug, category, title, author, date, read time and excerpt are required.");
       return;
     }
-    if (form.slug.trim().length > 50) {
-      setError("Slug must be 50 characters or less.");
+    if (form.slug.trim().length > 255) {
+      setError("Slug must be 255 characters or less.");
       return;
     }
     if (!form.paragraphs_text.trim()) {
@@ -423,11 +423,11 @@ export default function AdminBlogPage() {
               <label className={fieldLabel}>Slug *</label>
               <input
                 className={inputClass}
-                maxLength={50}
+                maxLength={255}
                 value={form.slug}
                 onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
               />
-              <p className="mt-1 text-xs text-slate-500">{form.slug.length}/50</p>
+              <p className="mt-1 text-xs text-slate-500">{form.slug.length}/255</p>
             </div>
             <div>
               <label className={fieldLabel}>Category</label>
@@ -519,6 +519,8 @@ export default function AdminBlogPage() {
               value={form.paragraphs_text}
               onChange={(html) => setForm((f) => ({ ...f, paragraphs_text: html }))}
               placeholder="Write your blog content here..."
+              scrollContent
+              contentMaxHeightClassName="max-h-[460px]"
             />
           </div>
 

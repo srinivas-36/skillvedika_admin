@@ -4,8 +4,15 @@ import Sidebar from "@/components/layout/sidebar";
 import Navbar from "@/components/layout/navbar";
 import type { ReactNode } from "react";
 import { Suspense } from "react";
+import { usePathname } from "next/navigation";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+
+  if (pathname === "/admin") {
+    return <>{children}</>;
+  }
+
   return (
     <div className="flex min-h-screen">
       <Suspense
@@ -17,7 +24,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </Suspense>
       <div className="ml-64 flex min-h-screen flex-1 flex-col">
         <Navbar />
-        <main className="flex-1 overflow-auto bg-[var(--admin-bg)] p-6 text-slate-900 md:p-8">
+        <main className="admin-main flex-1 overflow-auto bg-[var(--admin-bg)] p-4 text-slate-900 sm:p-6 md:p-8">
           {children}
         </main>
       </div>

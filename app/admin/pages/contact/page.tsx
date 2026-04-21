@@ -45,6 +45,12 @@ export default function AdminContactPage() {
             { key: "label", label: "Label", required: true },
             { key: "value", label: "Value", required: true },
             { key: "link", label: "Link (mailto/tel/url)" },
+            {
+              key: "map_embed_url",
+              label: "Google Map URL (only for address card)",
+              type: "textarea",
+              placeholder: "https://www.google.com/maps/embed?... or share URL",
+            },
           ],
         },
         {

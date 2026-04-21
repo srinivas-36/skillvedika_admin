@@ -37,6 +37,13 @@ type StudentApplication = {
 
 type TabKey = "instructors" | "students";
 
+function requestedCourse(app: StudentApplication): string {
+  if (app.course_title && app.course_title.trim()) return app.course_title.trim();
+  const msg = (app.message ?? "").trim();
+  const fromMessage = msg.match(/Interested course:\s*(.+)$/i)?.[1]?.trim();
+  return fromMessage || "-";
+}
+
 export default function ApplicationsPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>("instructors");
@@ -72,7 +79,7 @@ export default function ApplicationsPage() {
       ]);
 
       if (!instructorRes.ok || !studentRes.ok) {
-        setError("Could not load applications.");
+        setError("Could not load leads.");
         setInstructorApps([]);
         setStudentApps([]);
         return;
@@ -81,7 +88,7 @@ export default function ApplicationsPage() {
       setInstructorApps(Array.isArray(instructorJson) ? instructorJson : []);
       setStudentApps(Array.isArray(studentJson) ? studentJson : []);
     } catch {
-      setError("Could not load applications.");
+      setError("Could not load leads.");
       setInstructorApps([]);
       setStudentApps([]);
     } finally {
@@ -194,7 +201,7 @@ export default function ApplicationsPage() {
   return (
     <div className="mx-auto max-w-[1400px] space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[var(--admin-navy)]">Applications</h1>
+        <h1 className="text-2xl font-bold text-[var(--admin-navy)]">Leads</h1>
         <p className="mt-1 text-sm text-[var(--admin-muted)]">
           View all submitted instructor and student counselling forms.
         </p>
@@ -210,7 +217,7 @@ export default function ApplicationsPage() {
               : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
           }`}
         >
-          Instructor Applications ({instructorApps.length})
+          Instructor Leads ({instructorApps.length})
         </button>
         <button
           type="button"
@@ -221,7 +228,7 @@ export default function ApplicationsPage() {
               : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
           }`}
         >
-          Student Applications ({studentApps.length})
+          Student Leads ({studentApps.length})
         </button>
       </div>
 
@@ -232,7 +239,7 @@ export default function ApplicationsPage() {
       ) : null}
 
       {loading ? (
-        <p className="text-sm text-[var(--admin-muted)]">Loading applications...</p>
+        <p className="text-sm text-[var(--admin-muted)]">Loading leads...</p>
       ) : null}
 
       {!loading && activeTab === "instructors" ? (
@@ -308,7 +315,7 @@ export default function ApplicationsPage() {
           </table>
           {instructorApps.length === 0 ? (
             <p className="p-8 text-center text-sm text-[var(--admin-muted)]">
-              No instructor applications submitted yet.
+              No instructor leads submitted yet.
             </p>
           ) : null}
         </div>
@@ -316,16 +323,13 @@ export default function ApplicationsPage() {
 
       {!loading && activeTab === "students" ? (
         <div className="overflow-x-auto rounded-2xl border border-[var(--admin-border)] bg-white shadow-md shadow-[#0a2540]/[0.04]">
-          <table className="w-full min-w-[1100px] border-collapse text-sm">
+          <table className="w-full min-w-[980px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-[var(--admin-border)] bg-[var(--admin-bg-soft)] text-left">
                 <th className="p-3 font-bold text-[var(--admin-navy)]">Name</th>
                 <th className="p-3 font-bold text-[var(--admin-navy)]">Email</th>
                 <th className="p-3 font-bold text-[var(--admin-navy)]">Phone</th>
-                <th className="p-3 font-bold text-[var(--admin-navy)]">Experience</th>
-                <th className="p-3 font-bold text-[var(--admin-navy)]">Skills</th>
                 <th className="p-3 font-bold text-[var(--admin-navy)]">Course</th>
-                <th className="p-3 font-bold text-[var(--admin-navy)]">Message</th>
                 <th className="p-3 font-bold text-[var(--admin-navy)]">Terms</th>
                 <th className="p-3 font-bold text-[var(--admin-navy)]">Status</th>
                 <th className="p-3 font-bold text-[var(--admin-navy)]">Submitted At</th>
@@ -340,10 +344,7 @@ export default function ApplicationsPage() {
                   </td>
                   <td className="p-3 text-slate-700">{app.email}</td>
                   <td className="p-3 text-slate-700">{app.phone}</td>
-                  <td className="p-3 text-slate-700">{app.years_of_experience || "-"}</td>
-                  <td className="p-3 text-slate-700 whitespace-pre-wrap break-words">{app.skills || "-"}</td>
-                  <td className="p-3 text-slate-700">{app.course_title ?? "-"}</td>
-                  <td className="p-3 text-slate-700 whitespace-pre-wrap break-words">{app.message || "-"}</td>
+                  <td className="p-3 text-slate-700">{requestedCourse(app)}</td>
                   <td className="p-3 text-slate-700">{app.agreed_to_terms ? "Yes" : "No"}</td>
                   <td className="p-3">
                     <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
@@ -391,7 +392,7 @@ export default function ApplicationsPage() {
           </table>
           {studentApps.length === 0 ? (
             <p className="p-8 text-center text-sm text-[var(--admin-muted)]">
-              No student applications submitted yet.
+              No student leads submitted yet.
             </p>
           ) : null}
         </div>

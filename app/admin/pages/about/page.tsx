@@ -26,6 +26,7 @@ export default function AdminAboutPage() {
             { key: "heading", label: "Heading", required: true },
             { key: "paragraph_one", label: "Paragraph One", type: "textarea" },
             { key: "paragraph_two", label: "Paragraph Two", type: "textarea" },
+            { key: "hero_image", label: "Hero Image", type: "file" },
           ],
         },
         {
@@ -70,10 +71,10 @@ export default function AdminAboutPage() {
           mode: "singleton",
           fields: [
             { key: "heading", label: "Heading", required: true },
-            { key: "features", label: "Features (JSON array)", type: "json" },
+            { key: "features", label: "Features", type: "string_list" },
             { key: "form_title", label: "Form Title" },
             { key: "form_subtitle", label: "Form Subtitle" },
-            { key: "courses", label: "Courses (JSON array)", type: "json" },
+            { key: "courses", label: "Courses", type: "string_list" },
             { key: "submit_button_text", label: "Submit Button Text" },
           ],
         },

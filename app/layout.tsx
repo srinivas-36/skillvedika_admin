@@ -20,6 +20,10 @@ const poppinsMono = Poppins({
 export const metadata: Metadata = {
   title: "SkillVedika Admin",
   description: "Manage courses, users, and content",
+  icons: {
+    icon: "/favicon.ico",
+  },
+  metadataBase: new URL("https://skillvedika.com"),
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

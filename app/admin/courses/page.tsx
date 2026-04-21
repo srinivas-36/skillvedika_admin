@@ -4,7 +4,6 @@ import { useSearchParams } from "next/navigation";
 
 const API = `${process.env.NEXT_PUBLIC_API_URL}/api/courses/`;
 const CAT_API = `${process.env.NEXT_PUBLIC_API_URL}/api/categories/`;
-const COUNSELLING_API = `${process.env.NEXT_PUBLIC_API_URL}/api/courses/counselling/`;
 
 type Course = {
   id: number;
@@ -25,18 +24,6 @@ type Category = {
   description: string;
 };
 
-type CounsellingLead = {
-  id: number;
-  full_name: string;
-  email: string;
-  phone: string;
-  message: string;
-  course: number | null;
-  course_title?: string;
-  course_slug?: string;
-  created_at: string;
-};
-
 const input =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[var(--admin-accent)] focus:ring-2 focus:ring-[var(--admin-accent)]/20";
 
@@ -45,17 +32,17 @@ function slugify(title: string) {
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
-
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
 }
 
-function CoursesAdminPageInner() {
+function CoursesAdminPageContent() {
   const searchParams = useSearchParams();
   const [courses, setCourses] = useState<Course[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [leads, setLeads] = useState<CounsellingLead[]>([]);
 
   const [form, setForm] = useState({
     title: "",
@@ -114,22 +101,10 @@ function CoursesAdminPageInner() {
     }
   }, []);
 
-  const fetchLeads = useCallback(async () => {
-    try {
-      const res = await fetch(COUNSELLING_API);
-      if (!res.ok) return;
-      const data = await res.json();
-      setLeads(Array.isArray(data) ? data : []);
-    } catch {
-      setLeads([]);
-    }
-  }, []);
-
   useEffect(() => {
     void loadCategories();
     void fetchCourses();
-    void fetchLeads();
-  }, [loadCategories, fetchCourses, fetchLeads]);
+  }, [loadCategories, fetchCourses]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -154,26 +129,6 @@ function CoursesAdminPageInner() {
     const slug = (form.slug || slugify(form.title)).trim();
     if (!slug) {
       setSaveError("Slug is required (generated from title if empty).");
-      return;
-    }
-    if (!form.title.trim()) {
-      setSaveError("Title is required.");
-      return;
-    }
-    if (!form.description.trim()) {
-      setSaveError("Description is required.");
-      return;
-    }
-    if (!String(form.duration ?? "").trim()) {
-      setSaveError("Duration is required.");
-      return;
-    }
-    if (!String(form.price ?? "").trim()) {
-      setSaveError("Price is required.");
-      return;
-    }
-    if (!Number(form.category)) {
-      setSaveError("Category is required. Add a category first.");
       return;
     }
 
@@ -344,10 +299,9 @@ function CoursesAdminPageInner() {
             onChange={handleChange}
             className={`${input} min-h-[100px] resize-y`}
             rows={4}
-            required
           />
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">Duration</label>
             <input
@@ -356,18 +310,6 @@ function CoursesAdminPageInner() {
               value={form.duration}
               onChange={handleChange}
               className={input}
-              required
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-600">Price</label>
-            <input
-              name="price"
-              placeholder="e.g. ₹45,000"
-              value={form.price}
-              onChange={handleChange}
-              className={input}
-              required
             />
           </div>
           <div>
@@ -435,7 +377,6 @@ function CoursesAdminPageInner() {
                 <th className="whitespace-nowrap p-3 font-bold text-[var(--admin-navy)]">Slug</th>
                 <th className="min-w-[280px] p-3 font-bold text-[var(--admin-navy)]">Description (full)</th>
                 <th className="whitespace-nowrap p-3 font-bold text-[var(--admin-navy)]">Duration</th>
-                <th className="whitespace-nowrap p-3 font-bold text-[var(--admin-navy)]">Price</th>
                 <th className="whitespace-nowrap p-3 font-bold text-[var(--admin-navy)]">Rating</th>
                 <th className="whitespace-nowrap p-3 font-bold text-[var(--admin-navy)]">Category</th>
                 <th className="whitespace-nowrap p-3 font-bold text-[var(--admin-navy)]">Actions</th>
@@ -449,7 +390,6 @@ function CoursesAdminPageInner() {
                   <td className="p-3 font-mono text-xs text-slate-600">{c.slug}</td>
                   <td className="p-3 text-slate-700 whitespace-pre-wrap break-words">{c.description}</td>
                   <td className="p-3 text-slate-600">{c.duration}</td>
-                  <td className="p-3 font-semibold text-rose-600">{c.price}</td>
                   <td className="p-3 text-slate-600">{c.rating}</td>
                   <td className="p-3 text-slate-600">
                     {c.category_name ?? c.category}
@@ -484,53 +424,20 @@ function CoursesAdminPageInner() {
         </div>
       )}
 
-      <div className="mt-10 rounded-2xl border border-[var(--admin-border)] bg-white p-6 shadow-md shadow-[#0a2540]/[0.04]">
-        <h2 className="text-lg font-bold text-[var(--admin-navy)]">Free counselling submissions</h2>
-        <p className="mt-1 text-sm text-[var(--admin-muted)]">
-          Users who submitted from course page CTA form.
-        </p>
-
-        {leads.length === 0 ? (
-          <p className="mt-4 text-sm text-[var(--admin-muted)]">No submissions yet.</p>
-        ) : (
-          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-100">
-            <table className="w-full min-w-[900px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-[var(--admin-border)] bg-[var(--admin-bg-soft)] text-left">
-                  <th className="p-3 font-bold text-[var(--admin-navy)]">Name</th>
-                  <th className="p-3 font-bold text-[var(--admin-navy)]">Email</th>
-                  <th className="p-3 font-bold text-[var(--admin-navy)]">Phone</th>
-                  <th className="p-3 font-bold text-[var(--admin-navy)]">Course</th>
-                  <th className="p-3 font-bold text-[var(--admin-navy)]">Message</th>
-                  <th className="p-3 font-bold text-[var(--admin-navy)]">Submitted At</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leads.map((lead) => (
-                  <tr key={lead.id} className="border-t border-slate-100 align-top hover:bg-slate-50/80">
-                    <td className="p-3 font-semibold text-slate-900">{lead.full_name}</td>
-                    <td className="p-3 text-slate-700">{lead.email}</td>
-                    <td className="p-3 text-slate-700">{lead.phone}</td>
-                    <td className="p-3 text-slate-700">{lead.course_title ?? "-"}</td>
-                    <td className="p-3 text-slate-700 whitespace-pre-wrap break-words">{lead.message || "-"}</td>
-                    <td className="p-3 text-slate-600">
-                      {new Date(lead.created_at).toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
 
 export default function CoursesAdminPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-slate-500">Loading…</div>}>
-      <CoursesAdminPageInner />
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-[1400px]">
+          <p className="text-sm text-[var(--admin-muted)]">Loading courses…</p>
+        </div>
+      }
+    >
+      <CoursesAdminPageContent />
     </Suspense>
   );
 }

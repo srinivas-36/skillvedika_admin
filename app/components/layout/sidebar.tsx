@@ -29,7 +29,7 @@ const nav = [
   
   { href: "/admin/blog", label: "Blog" },
   { href: "/admin/instructor", label: "Instructor" },
-  { href: "/admin/applications", label: "Applications" },
+  { href: "/admin/leads", label: "Leads" },
   {
     label: "Pages",
     subItems: [
@@ -52,8 +52,8 @@ const nav = [
 
 const linkBase =
   "block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150";
-const linkIdle = "text-slate-400 hover:bg-[var(--admin-sidebar-hover)] hover:text-white";
-const linkActive = "bg-[var(--admin-accent)] text-white shadow-md shadow-blue-950/40";
+const linkIdle = "text-slate-200 hover:bg-[var(--admin-sidebar-hover)] hover:text-white";
+const linkActive = "bg-[var(--admin-accent)] text-white shadow-md shadow-indigo-900/30";
 const MEDIA_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
 type Category = {
@@ -217,7 +217,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="fixed top-0 left-0 h-screen w-64 flex flex-col border-r border-[var(--admin-sidebar-border)] bg-[var(--admin-sidebar)] z-50"
+      className="fixed top-0 left-0 z-50 flex h-screen w-64 flex-col border-r border-[var(--admin-sidebar-border)] bg-[var(--admin-sidebar)]"
     >
       <div className="border-b border-[var(--admin-sidebar-border)] px-4 py-6">
         <div className="flex items-center gap-3">
@@ -234,9 +234,6 @@ export default function Sidebar() {
             {!logoSrc ? (
               <div className="text-sm font-bold tracking-tight text-white">{branding.brand_name}</div>
             ) : null}
-            <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
-              Admin
-            </div>
           </div>
         </div>
       </div>
@@ -264,12 +261,12 @@ export default function Sidebar() {
                   onClick={() => toggleMenu(label)}
                   className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium transition hover:bg-[var(--admin-sidebar-hover)] hover:text-white ${
                     isActiveMenuButton(label)
-                      ? "bg-[var(--admin-accent)] text-white shadow-md shadow-blue-950/40"
-                      : "text-slate-400"
+                      ? "bg-[var(--admin-accent)] text-white shadow-md shadow-indigo-950/40"
+                      : "text-slate-200"
                   }`}
                 >
                   {label}
-                  <span className="text-slate-500">{openMenus[label] ? "−" : "+"}</span>
+                  <span className="text-indigo-200/80">{openMenus[label] ? "−" : "+"}</span>
                 </button>
               )}
 

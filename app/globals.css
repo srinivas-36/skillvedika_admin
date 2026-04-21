@@ -3,18 +3,18 @@
 @tailwind utilities;
 
 :root {
-  --admin-bg: #e8f2fc;
-  --admin-bg-soft: #f0f7ff;
-  --admin-sidebar: #0a2540;
-  --admin-sidebar-border: #133a5e;
-  --admin-sidebar-hover: rgba(255, 255, 255, 0.06);
-  --admin-accent: #0066ff;
-  --admin-accent-hover: #0052cc;
-  --admin-accent-soft: rgba(0, 102, 255, 0.12);
-  --admin-navy: #001f3f;
+  --admin-bg: #f1f5ff;
+  --admin-bg-soft: #e8efff;
+  --admin-sidebar: #111827;
+  --admin-sidebar-border: #243047;
+  --admin-sidebar-hover: rgba(148, 163, 184, 0.2);
+  --admin-accent: #4f46e5;
+  --admin-accent-hover: #4338ca;
+  --admin-accent-soft: rgba(79, 70, 229, 0.14);
+  --admin-navy: #111827;
   --admin-card: #ffffff;
-  --admin-border: #cfe2f7;
-  --admin-text: #0f172a;
+  --admin-border: #d4dcf0;
+  --admin-text: #111827;
   --admin-muted: #64748b;
 }
 
@@ -33,6 +33,14 @@ body.admin-body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure every admin page uses full available main-content width. */
+.admin-main > * {
+  width: 100%;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }
 
 

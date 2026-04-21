@@ -36,6 +36,7 @@ type SectionMeta = {
   blogs_heading?: string;
   faqs_heading?: string;
 };
+type SectionMetaKey = keyof SectionMeta;
 
 const SECTIONS = [
   "about",
@@ -54,6 +55,36 @@ const SECTIONS = [
 
 type SectionName = (typeof SECTIONS)[number];
 
+const SECTION_HEADING_META: Record<SectionName, { key: SectionMetaKey; label: string }> = {
+  about: { key: "about_heading", label: "About Heading" },
+  skills: { key: "skills_heading", label: "Skills Heading" },
+  tools: { key: "tools_heading", label: "Tools Heading" },
+  curriculum: { key: "curriculum_heading", label: "Curriculum Heading" },
+  projects: { key: "projects_heading", label: "Projects Heading" },
+  salary: { key: "salary_heading", label: "Salary Heading" },
+  "placement-support": { key: "placement_support_heading", label: "Placement Support Heading" },
+  "corporate-training": { key: "corporate_training_heading", label: "Corporate Training Heading" },
+  faqs: { key: "faqs_heading", label: "FAQs Heading" },
+  batches: { key: "batches_heading", label: "Batches Heading" },
+  blogs: { key: "blogs_heading", label: "Blogs Heading" },
+  trainers: { key: "trainers_heading", label: "Trainers Heading" },
+};
+
+const SECTION_DEFAULT_TITLE: Record<SectionName, string> = {
+  about: "ABOUT",
+  skills: "SKILLS",
+  tools: "TOOLS",
+  curriculum: "CURRICULUM",
+  projects: "PROJECTS",
+  salary: "SALARY",
+  "placement-support": "PLACEMENT SUPPORT",
+  "corporate-training": "CORPORATE TRAINING",
+  faqs: "FAQS",
+  batches: "BATCHES",
+  blogs: "BLOGS",
+  trainers: "TRAINERS",
+};
+
 type FieldDef = {
   key: string;
   label: string;
@@ -62,7 +93,6 @@ type FieldDef = {
 
 const SECTION_FIELDS: Record<SectionName, FieldDef[]> = {
   about: [
-    { key: "heading", label: "Section Heading" },
     { key: "content", label: "Content", type: "textarea" },
   ],
   skills: [
@@ -83,11 +113,9 @@ const SECTION_FIELDS: Record<SectionName, FieldDef[]> = {
     { key: "range", label: "Salary Range" },
   ],
   "placement-support": [
-    { key: "heading", label: "Section Heading" },
     { key: "content", label: "Content", type: "textarea" },
   ],
   "corporate-training": [
-    { key: "heading", label: "Section Heading" },
     { key: "content", label: "Content", type: "textarea" },
   ],
   faqs: [
@@ -487,6 +515,36 @@ export default function AdminCourseDetailsPage() {
     }
   }
 
+  async function saveSingleSectionHeading(section: SectionName) {
+    setError(null);
+    setMessage(null);
+    if (!getAccessToken()) {
+      router.replace("/admin");
+      return;
+    }
+    if (!selectedSlug) {
+      setError("Select a course first.");
+      return;
+    }
+    const headingConfig = SECTION_HEADING_META[section];
+    try {
+      const res = await fetch(apiUrl(`/api/course-details/course/${selectedSlug}/meta/`), {
+        method: "PUT",
+        headers: authHeadersJson(),
+        body: JSON.stringify(metaForm),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(parseApiError(body));
+        return;
+      }
+      setMessage(`${headingConfig.label} saved successfully.`);
+      await loadCourseDetails(selectedSlug);
+    } catch {
+      setError(`Could not update ${headingConfig.label.toLowerCase()}.`);
+    }
+  }
+
   async function saveSeo(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -807,64 +865,6 @@ export default function AdminCourseDetailsPage() {
         </form>
       </EditorPanel>
 
-      <EditorPanel title="Section Headings">
-        <form onSubmit={(e) => void saveSectionHeadings(e)} className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className={fieldLabel}>About heading</label>
-              <input className={inputClass} value={metaForm.about_heading ?? ""} onChange={(e) => setMetaForm((p) => ({ ...p, about_heading: e.target.value }))} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Skills heading</label>
-              <input className={inputClass} value={metaForm.skills_heading ?? ""} onChange={(e) => setMetaForm((p) => ({ ...p, skills_heading: e.target.value }))} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Tools heading</label>
-              <input className={inputClass} value={metaForm.tools_heading ?? ""} onChange={(e) => setMetaForm((p) => ({ ...p, tools_heading: e.target.value }))} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Curriculum heading</label>
-              <input className={inputClass} value={metaForm.curriculum_heading ?? ""} onChange={(e) => setMetaForm((p) => ({ ...p, curriculum_heading: e.target.value }))} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Projects heading</label>
-              <input className={inputClass} value={metaForm.projects_heading ?? ""} onChange={(e) => setMetaForm((p) => ({ ...p, projects_heading: e.target.value }))} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Salary heading</label>
-              <input className={inputClass} value={metaForm.salary_heading ?? ""} onChange={(e) => setMetaForm((p) => ({ ...p, salary_heading: e.target.value }))} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Placement support heading</label>
-              <input className={inputClass} value={metaForm.placement_support_heading ?? ""} onChange={(e) => setMetaForm((p) => ({ ...p, placement_support_heading: e.target.value }))} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Corporate training heading</label>
-              <input className={inputClass} value={metaForm.corporate_training_heading ?? ""} onChange={(e) => setMetaForm((p) => ({ ...p, corporate_training_heading: e.target.value }))} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Trainers heading</label>
-              <input className={inputClass} value={metaForm.trainers_heading ?? ""} onChange={(e) => setMetaForm((p) => ({ ...p, trainers_heading: e.target.value }))} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Batches heading</label>
-              <input className={inputClass} value={metaForm.batches_heading ?? ""} onChange={(e) => setMetaForm((p) => ({ ...p, batches_heading: e.target.value }))} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Blogs heading</label>
-              <input className={inputClass} value={metaForm.blogs_heading ?? ""} onChange={(e) => setMetaForm((p) => ({ ...p, blogs_heading: e.target.value }))} />
-            </div>
-            <div>
-              <label className={fieldLabel}>FAQs heading</label>
-              <input className={inputClass} value={metaForm.faqs_heading ?? ""} onChange={(e) => setMetaForm((p) => ({ ...p, faqs_heading: e.target.value }))} />
-            </div>
-          </div>
-          <button type="submit" className={btnPrimary}>
-            Save Section Headings
-          </button>
-        </form>
-      </EditorPanel>
-
       <EditorPanel title="Course details table">
         <div id="course-details-sections" className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -877,19 +877,45 @@ export default function AdminCourseDetailsPage() {
           </div>
 
           {SECTIONS.map((section) => {
-            console.log("section ::: ",section)
             const fields = SECTION_FIELDS[section];
             const items = sections[section] ?? [];
             const editingId = editingBySection[section];
             const form = formBySection[section];
-
-            console.log("items :: ",items)
+            const headingConfig = SECTION_HEADING_META[section];
             return (
               <EditorPanel
                 key={section}
-                title={section.toUpperCase()}
+                title={
+                  String(metaForm[headingConfig.key] ?? "").trim() ||
+                  SECTION_DEFAULT_TITLE[section]
+                }
               >
                 <div id={`course-details-${section}`} />
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void saveSingleSectionHeading(section);
+                  }}
+                  className="rounded-xl border border-slate-200 bg-slate-50/60 p-4"
+                >
+                  <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                    <div>
+                      <label className={fieldLabel}>{headingConfig.label}</label>
+                      <input
+                        className={inputClass}
+                        value={String(metaForm[headingConfig.key] ?? "")}
+                        onChange={(e) =>
+                          setMetaForm((prev) => ({ ...prev, [headingConfig.key]: e.target.value }))
+                        }
+                        placeholder={`Enter ${headingConfig.label.toLowerCase()}`}
+                      />
+                    </div>
+                    <button type="submit" className={btnPrimary}>
+                      Save Heading
+                    </button>
+                  </div>
+                </form>
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-sm text-slate-600">
