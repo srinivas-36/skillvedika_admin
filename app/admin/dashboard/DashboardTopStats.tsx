@@ -72,12 +72,22 @@ export default function DashboardTopStats({ coursesCount, categoriesCount, blogs
       {stats.map((s) => (
         <div
           key={s.label}
-          className="overflow-hidden rounded-2xl border border-[var(--admin-border)] bg-gradient-to-br from-white via-indigo-50/35 to-cyan-50/45 shadow-sm shadow-indigo-900/5 transition hover:-translate-y-0.5 hover:shadow-md hover:shadow-indigo-900/10"
+          className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.5)] transition duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_36px_-22px_rgba(15,23,42,0.55)]"
         >
-          <div className={`h-1.5 bg-gradient-to-r ${s.accent}`} />
-          <div className="p-5">
-            <p className="text-sm font-semibold text-[var(--admin-muted)]">{s.label}</p>
-            <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight text-[var(--admin-navy)]">{s.value}</p>
+          <div
+            className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${s.accent}`}
+            aria-hidden="true"
+          />
+          <div
+            className={`pointer-events-none absolute -right-7 -top-7 h-24 w-24 rounded-full bg-gradient-to-br ${s.accent} opacity-10 blur-2xl transition-opacity duration-300 group-hover:opacity-20`}
+            aria-hidden="true"
+          />
+          <p className="text-sm font-semibold text-slate-500">{s.label}</p>
+          <p className="mt-2 text-4xl font-bold tabular-nums tracking-tight text-[var(--admin-navy)]">
+            {s.value}
+          </p>
+          <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className={`h-1.5 w-2/3 rounded-full bg-gradient-to-r ${s.accent}`} />
           </div>
         </div>
       ))}
