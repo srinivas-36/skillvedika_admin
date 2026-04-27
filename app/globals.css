@@ -30,9 +30,17 @@ html.admin-app {
 body.admin-body {
   background: var(--admin-bg);
   color: var(--admin-text);
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html.admin-app,
+body.admin-body,
+body.admin-body *,
+body.admin-body *::before,
+body.admin-body *::after {
+  font-family: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Ensure every admin page uses full available main-content width. */
@@ -62,4 +70,41 @@ body.admin-body {
 /* Paragraph spacing like Word */
 .ProseMirror p {
   margin: 0.5rem 0;
+}
+
+/* Keep heading levels visually distinct in the editor. */
+.ProseMirror h1 {
+  font-size: 2.25rem !important;
+  line-height: 2.5rem !important;
+  font-weight: 700 !important;
+}
+
+.ProseMirror h2 {
+  font-size: 1.875rem !important;
+  line-height: 2.25rem !important;
+  font-weight: 700 !important;
+}
+
+.ProseMirror h3 {
+  font-size: 1.5rem !important;
+  line-height: 2rem !important;
+  font-weight: 700 !important;
+}
+
+.ProseMirror h1 *,
+.ProseMirror h2 *,
+.ProseMirror h3 * {
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+
+/* Keep links visually identifiable inside admin rich-text editor. */
+.ProseMirror a {
+  color: #2563eb;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ProseMirror a:hover {
+  color: #1d4ed8;
 }

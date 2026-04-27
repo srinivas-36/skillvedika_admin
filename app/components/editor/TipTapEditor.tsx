@@ -55,6 +55,12 @@ const CLOUD_NAME = "dhy0krkef";
 const UPLOAD_PRESET = "preptara";
 const FONT_FAMILY = "Poppins";
 const DEFAULT_FONT_SIZE = "16px";
+const HEADING_FONT_SIZES: Record<"h1" | "h2" | "h3" | "h4", string> = {
+  h1: "32px",
+  h2: "26px",
+  h3: "20px",
+  h4: "18px",
+};
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -138,6 +144,7 @@ export default function TipTapEditor({
     if (currentEditor.isActive("heading", { level: 1 })) setCurrentHeading("h1");
     else if (currentEditor.isActive("heading", { level: 2 })) setCurrentHeading("h2");
     else if (currentEditor.isActive("heading", { level: 3 })) setCurrentHeading("h3");
+    else if (currentEditor.isActive("heading", { level: 4 })) setCurrentHeading("h4");
     else setCurrentHeading("paragraph");
   };
 
@@ -295,6 +302,28 @@ export default function TipTapEditor({
       .updateAttributes("orderedList", { listStyleType: style })
       .run();
     setShowOrderedMenu(false);
+  };
+
+  const applyHeadingStyle = (value: string) => {
+    if (value === "paragraph") {
+      editor
+        .chain()
+        .focus()
+        .setParagraph()
+        .setMark("textStyle", { fontSize: DEFAULT_FONT_SIZE })
+        .run();
+      return;
+    }
+
+    const headingKey = value as keyof typeof HEADING_FONT_SIZES;
+    const level = Number(value.slice(1)) as 1 | 2 | 3 | 4;
+    const fontSize = HEADING_FONT_SIZES[headingKey];
+    editor
+      .chain()
+      .focus()
+      .setHeading({ level })
+      .setMark("textStyle", { fontSize })
+      .run();
   };
 
   const openLinkMenu = () => {
@@ -460,19 +489,13 @@ export default function TipTapEditor({
         <select
           className="rounded border border-slate-300 bg-white px-2 py-1 text-sm"
           value={currentHeading}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val === "paragraph") {
-              editor.chain().focus().setParagraph().run();
-              return;
-            }
-            editor.chain().focus().setHeading({ level: Number(val.slice(1)) as 1 | 2 | 3 }).run();
-          }}
+          onChange={(e) => applyHeadingStyle(e.target.value)}
         >
           <option value="paragraph">Normal</option>
           <option value="h1">H1</option>
           <option value="h2">H2</option>
           <option value="h3">H3</option>
+          <option value="h4">H4</option>
         </select>
 
         <button
