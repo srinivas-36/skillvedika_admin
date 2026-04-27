@@ -54,12 +54,12 @@ interface TipTapEditorProps {
 const CLOUD_NAME = "dhy0krkef";
 const UPLOAD_PRESET = "preptara";
 const FONT_FAMILY = "Poppins";
-const DEFAULT_FONT_SIZE = "16px";
+const DEFAULT_FONT_SIZE = "15px";
 const HEADING_FONT_SIZES: Record<"h1" | "h2" | "h3" | "h4", string> = {
-  h1: "32px",
-  h2: "26px",
-  h3: "20px",
-  h4: "18px",
+  h1: "28px",
+  h2: "22px",
+  h3: "18px",
+  h4: "16px",
 };
 
 const FontSize = Extension.create({
