@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const BACKEND = (process.env.BACKEND_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
 const nextConfig: NextConfig = {
+  // Keep trailing slashes on proxied API paths so Django routes like `/api/token/` still match.
+  skipTrailingSlashRedirect: true,
   async redirects() {
     return [
       {

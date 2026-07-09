@@ -2,7 +2,6 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { apiUrl } from "@/lib/api";
 import { ACCESS_TOKEN_KEY, ADMIN_IDENTIFIER_KEY, REFRESH_TOKEN_KEY } from "@/lib/auth";
 
 export default function AdminLoginForm() {
@@ -18,7 +17,8 @@ export default function AdminLoginForm() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/token/`, {
+      // Use same-origin `/api/...` so Next.js rewrites proxy to Django (avoids CORS when admin is on :3001/:3002).
+      const res = await fetch("/api/token/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: identifier.trim(), username: identifier.trim(), password }),

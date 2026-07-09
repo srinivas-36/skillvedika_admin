@@ -20,7 +20,7 @@ type PageContentForm = {
   meta_description: string;
   meta_keywords: string;
   why_title: string;
-  why_points_text: string;
+  why_points: string[];
   cta_title: string;
   cta_subtitle: string;
   cta_buttons: { text: string; link: string; variant?: string }[];
@@ -37,7 +37,7 @@ const emptyForm: PageContentForm = {
   meta_description: "",
   meta_keywords: "",
   why_title: "",
-  why_points_text: "",
+  why_points: [],
   cta_title: "",
   cta_subtitle: "",
   cta_buttons: [],
@@ -61,11 +61,20 @@ function normalizeButtons(raw: unknown): { text: string; link: string; variant?:
 
 function mapApiToForm(data: Record<string, unknown>): PageContentForm {
   const why = data.whyPoints ?? data.why_points;
-  let whyText = "";
+  let whyPoints: string[] = [];
   if (Array.isArray(why)) {
-    whyText = why.map(String).join("\n");
+    whyPoints = why.map((item) => String(item ?? ""));
   } else if (typeof why === "string") {
-    whyText = why;
+    const normalized = why.trim();
+    if (normalized) {
+      // Preserve rich text/HTML as a single point; otherwise split plain text lines.
+      whyPoints = /<[^>]+>/.test(normalized)
+        ? [normalized]
+        : normalized
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean);
+    }
   }
 
   const faqItemsRaw = data.faqItems ?? data.faq_items;
@@ -87,7 +96,7 @@ function mapApiToForm(data: Record<string, unknown>): PageContentForm {
     meta_description: String(data.metaDescription ?? data.meta_description ?? ""),
     meta_keywords: String(data.metaKeywords ?? data.meta_keywords ?? ""),
     why_title: String(data.whyTitle ?? data.why_title ?? ""),
-    why_points_text: whyText,
+    why_points: whyPoints,
     cta_title: String(data.ctaTitle ?? data.cta_title ?? ""),
     cta_subtitle: String(data.ctaSubtitle ?? data.cta_subtitle ?? ""),
     cta_buttons: normalizeButtons(ctaButtonsRaw),
@@ -103,6 +112,17 @@ export default function CoursesPageContentAdmin() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<null | "seo" | "hero" | "why" | "cta" | "faq" | "all">(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  function matchesSearch(query: string, ...values: (string | number | null | undefined)[]) {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return values.some((v) => String(v ?? "").toLowerCase().includes(q));
+  }
+
+  function sectionVisible(title: string, ...values: (string | number | null | undefined)[]) {
+    return matchesSearch(searchQuery, title, ...values);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -206,6 +226,28 @@ export default function CoursesPageContentAdmin() {
     }));
   }
 
+  function addWhyPoint() {
+    setForm((prev) => ({
+      ...prev,
+      why_points: [...prev.why_points, ""],
+    }));
+  }
+
+  function updateWhyPoint(index: number, value: string) {
+    setForm((prev) => {
+      const next = [...prev.why_points];
+      next[index] = value;
+      return { ...prev, why_points: next };
+    });
+  }
+
+  function removeWhyPoint(index: number) {
+    setForm((prev) => ({
+      ...prev,
+      why_points: prev.why_points.filter((_, i) => i !== index),
+    }));
+  }
+
   async function saveSection(section: "seo" | "hero" | "why" | "cta" | "faq" | "all") {
     setSaving(section);
     setMessage(null);
@@ -213,6 +255,7 @@ export default function CoursesPageContentAdmin() {
 
     const faq_items = form.faq_items.filter((item) => item.question.trim() && item.answer.trim());
     const hero_cta_buttons = form.hero_cta_buttons.filter((b) => b.text.trim() && b.link.trim());
+    const why_points = form.why_points.filter((p) => p.trim());
     const cta_buttons = form.cta_buttons
       .map((b) => ({
         text: b.text.trim(),
@@ -237,7 +280,7 @@ export default function CoursesPageContentAdmin() {
           : section === "why"
             ? {
                 why_title: form.why_title,
-                why_points: form.why_points_text,
+                why_points,
               }
             : section === "cta"
               ? {
@@ -259,7 +302,7 @@ export default function CoursesPageContentAdmin() {
                     meta_description: form.meta_description,
                     meta_keywords: form.meta_keywords,
                     why_title: form.why_title,
-                    why_points: form.why_points_text,
+                    why_points,
                     cta_title: form.cta_title,
                     cta_subtitle: form.cta_subtitle,
                     cta_buttons,
@@ -304,7 +347,7 @@ export default function CoursesPageContentAdmin() {
         <p className="mt-1 text-sm text-[var(--admin-muted)]">
           Single record for public <code className="rounded bg-slate-100 px-1 text-xs">/courses</code> and{" "}
           <code className="rounded bg-slate-100 px-1 text-xs">/courses/[category-slug]</code> SEO, hero, why section,
-          CTA, and FAQ. Why points: one per line.
+          CTA, and FAQ.
         </p>
         {message ? (
           <p className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">{message}</p>
@@ -314,8 +357,44 @@ export default function CoursesPageContentAdmin() {
             {error}
           </pre>
         ) : null}
+        <div className="mt-4">
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search sections and content..."
+            className={fieldClass}
+          />
+        </div>
+        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full min-w-[640px] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                <th className="p-3 font-bold text-slate-700">Section</th>
+                <th className="p-3 font-bold text-slate-700">Summary</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { title: "SEO", summary: form.meta_title },
+                { title: "Hero", summary: form.hero_title },
+                { title: "Why learn / invest", summary: form.why_title },
+                { title: "CTA", summary: form.cta_title },
+                { title: "FAQ", summary: form.faq_heading },
+              ]
+                .filter((row) => sectionVisible(row.title, row.summary))
+                .map((row) => (
+                  <tr key={row.title} className="border-t border-slate-100">
+                    <td className="p-3 font-semibold text-slate-900">{row.title}</td>
+                    <td className="p-3 text-slate-600">{row.summary || "—"}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
+      {sectionVisible("SEO", form.meta_title, form.meta_description, form.meta_keywords) ? (
       <Section title="SEO">
         <Input
           name="meta_title"
@@ -341,33 +420,47 @@ export default function CoursesPageContentAdmin() {
           </SaveButton>
         </SaveRow>
       </Section>
+      ) : null}
 
+      {sectionVisible("Hero", form.hero_title, form.hero_subtitle) ? (
       <Section title="Hero">
         <Input name="hero_title" value={form.hero_title} onChange={handleChange} placeholder="Hero title" />
         <Textarea name="hero_subtitle" value={form.hero_subtitle} onChange={handleChange} placeholder="Hero subtitle" />
         <div className="space-y-3">
           <label className="mb-1 block text-xs font-semibold text-slate-600">Hero CTA buttons</label>
-          {form.hero_cta_buttons.map((b, index) => (
-            <div key={`hero-cta-${index}`} className="rounded-xl border border-slate-200 p-4 space-y-3">
-              <Input
-                value={b.text}
-                onChange={(e) => updateHeroButton(index, "text", e.target.value)}
-                placeholder="Button text"
-              />
-              <Input
-                value={b.link}
-                onChange={(e) => updateHeroButton(index, "link", e.target.value)}
-                placeholder="Button link (e.g. /courses#all-courses)"
-              />
-              <button
-                type="button"
-                className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700"
-                onClick={() => removeHeroButton(index)}
-              >
-                Remove button
-              </button>
-            </div>
-          ))}
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full min-w-[640px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                  <th className="p-3 font-bold text-slate-700">#</th>
+                  <th className="p-3 font-bold text-slate-700">Text</th>
+                  <th className="p-3 font-bold text-slate-700">Link</th>
+                  <th className="p-3 font-bold text-slate-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {form.hero_cta_buttons
+                  .map((b, index) => ({ b, index }))
+                  .filter(({ b, index }) => matchesSearch(searchQuery, index + 1, b.text, b.link))
+                  .map(({ b, index }) => (
+                    <tr key={`hero-cta-${index}`} className="border-t border-slate-100 align-top">
+                      <td className="p-3 text-slate-500">{index + 1}</td>
+                      <td className="p-3">
+                        <Input value={b.text} onChange={(e) => updateHeroButton(index, "text", e.target.value)} placeholder="Button text" />
+                      </td>
+                      <td className="p-3">
+                        <Input value={b.link} onChange={(e) => updateHeroButton(index, "link", e.target.value)} placeholder="Button link" />
+                      </td>
+                      <td className="p-3">
+                        <button type="button" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700" onClick={() => removeHeroButton(index)}>
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
           <button
             type="button"
             className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700"
@@ -382,48 +475,105 @@ export default function CoursesPageContentAdmin() {
           </SaveButton>
         </SaveRow>
       </Section>
+      ) : null}
 
+      {sectionVisible("Why learn / invest", form.why_title, ...form.why_points) ? (
       <Section title="Why learn / invest">
         <Input name="why_title" value={form.why_title} onChange={handleChange} placeholder="Section title" />
-        <TipTapEditor value={form.why_points_text} onChange={(html) => setForm((f) => ({ ...f, why_points_text: html }))} placeholder="Why points" />
+        <div className="space-y-3">
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full min-w-[480px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                  <th className="p-3 font-bold text-slate-700">#</th>
+                  <th className="p-3 font-bold text-slate-700">Preview</th>
+                  <th className="p-3 font-bold text-slate-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {form.why_points
+                  .map((point, index) => ({ point, index }))
+                  .filter(({ point, index }) => matchesSearch(searchQuery, index + 1, point.replace(/<[^>]+>/g, " ")))
+                  .map(({ point, index }) => (
+                    <tr key={`why-point-${index}`} className="border-t border-slate-100 align-top">
+                      <td className="p-3 text-slate-500">{index + 1}</td>
+                      <td className="p-3 text-slate-700">{point.replace(/<[^>]+>/g, " ").trim().slice(0, 120) || "—"}</td>
+                      <td className="p-3">
+                        <button type="button" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700" onClick={() => removeWhyPoint(index)}>
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+          {form.why_points
+            .map((point, index) => ({ point, index }))
+            .filter(({ point, index }) => matchesSearch(searchQuery, index + 1, point.replace(/<[^>]+>/g, " ")))
+            .map(({ point, index }) => (
+            <div key={`why-editor-${index}`} className="rounded-xl border border-slate-200 p-4 space-y-3">
+              <label className="block text-xs font-semibold text-slate-600">Point {index + 1}</label>
+              <TipTapEditor
+                value={point}
+                onChange={(html) => updateWhyPoint(index, html)}
+                placeholder={`Why point ${index + 1}`}
+              />
+            </div>
+          ))}
+          <button
+            type="button"
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700"
+            onClick={addWhyPoint}
+          >
+            Add point
+          </button>
+        </div>
         <SaveRow>
           <SaveButton disabled={saving !== null} onClick={() => void saveSection("why")}>
             {saving === "why" ? "Saving…" : "Save Why section"}
           </SaveButton>
         </SaveRow>
       </Section>
+      ) : null}
 
+      {sectionVisible("CTA", form.cta_title, form.cta_subtitle) ? (
       <Section title="CTA">
         <Input name="cta_title" value={form.cta_title} onChange={handleChange} placeholder="CTA title" />
         <Textarea name="cta_subtitle" value={form.cta_subtitle} onChange={handleChange} placeholder="CTA subtitle" />
         <div className="space-y-3">
           <label className="mb-1 block text-xs font-semibold text-slate-600">CTA buttons</label>
-          {form.cta_buttons.map((b, index) => (
-            <div key={`cta-btn-${index}`} className="rounded-xl border border-slate-200 p-4 space-y-3">
-              <Input
-                value={b.text}
-                onChange={(e) => updateCtaButton(index, "text", e.target.value)}
-                placeholder="Button text"
-              />
-              <Input
-                value={b.link}
-                onChange={(e) => updateCtaButton(index, "link", e.target.value)}
-                placeholder="Button link (e.g. /contact)"
-              />
-              <Input
-                value={String(b.variant ?? "")}
-                onChange={(e) => updateCtaButton(index, "variant", e.target.value)}
-                placeholder='Variant (optional: "primary" | "secondary")'
-              />
-              <button
-                type="button"
-                className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700"
-                onClick={() => removeCtaButton(index)}
-              >
-                Remove button
-              </button>
-            </div>
-          ))}
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full min-w-[760px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                  <th className="p-3 font-bold text-slate-700">#</th>
+                  <th className="p-3 font-bold text-slate-700">Text</th>
+                  <th className="p-3 font-bold text-slate-700">Link</th>
+                  <th className="p-3 font-bold text-slate-700">Variant</th>
+                  <th className="p-3 font-bold text-slate-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {form.cta_buttons
+                  .map((b, index) => ({ b, index }))
+                  .filter(({ b, index }) => matchesSearch(searchQuery, index + 1, b.text, b.link, b.variant))
+                  .map(({ b, index }) => (
+                    <tr key={`cta-btn-${index}`} className="border-t border-slate-100 align-top">
+                      <td className="p-3 text-slate-500">{index + 1}</td>
+                      <td className="p-3"><Input value={b.text} onChange={(e) => updateCtaButton(index, "text", e.target.value)} placeholder="Button text" /></td>
+                      <td className="p-3"><Input value={b.link} onChange={(e) => updateCtaButton(index, "link", e.target.value)} placeholder="Button link" /></td>
+                      <td className="p-3"><Input value={String(b.variant ?? "")} onChange={(e) => updateCtaButton(index, "variant", e.target.value)} placeholder="primary / secondary" /></td>
+                      <td className="p-3">
+                        <button type="button" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700" onClick={() => removeCtaButton(index)}>
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
           <button
             type="button"
             className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700"
@@ -438,31 +588,46 @@ export default function CoursesPageContentAdmin() {
           </SaveButton>
         </SaveRow>
       </Section>
+      ) : null}
 
+      {sectionVisible("FAQ", form.faq_heading, form.faq_intro, ...form.faq_items.flatMap((i) => [i.question, i.answer])) ? (
       <Section title="FAQ">
         <Input name="faq_heading" value={form.faq_heading} onChange={handleChange} placeholder="FAQ heading" />
         <Textarea name="faq_intro" value={form.faq_intro} onChange={handleChange} placeholder="Intro under heading" />
         <div className="space-y-3">
-          {form.faq_items.map((item, index) => (
-            <div key={`faq-${index}`} className="rounded-xl border border-slate-200 p-4">
-              <div className="space-y-3">
-                <Input
-                  value={item.question}
-                  onChange={(e) => updateFaq(index, "question", e.target.value)}
-                  placeholder="Question"
-                />
-                <Textarea
-                  value={item.answer}
-                  onChange={(e) => updateFaq(index, "answer", e.target.value)}
-                  placeholder="Answer"
-                  rows={4}
-                />
-                <button type="button" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700" onClick={() => removeFaq(index)}>
-                  Remove FAQ
-                </button>
-              </div>
-            </div>
-          ))}
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full min-w-[760px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                  <th className="p-3 font-bold text-slate-700">#</th>
+                  <th className="p-3 font-bold text-slate-700">Question</th>
+                  <th className="p-3 font-bold text-slate-700">Answer</th>
+                  <th className="p-3 font-bold text-slate-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {form.faq_items
+                  .map((item, index) => ({ item, index }))
+                  .filter(({ item, index }) => matchesSearch(searchQuery, index + 1, item.question, item.answer))
+                  .map(({ item, index }) => (
+                    <tr key={`faq-${index}`} className="border-t border-slate-100 align-top">
+                      <td className="p-3 text-slate-500">{index + 1}</td>
+                      <td className="p-3">
+                        <Input value={item.question} onChange={(e) => updateFaq(index, "question", e.target.value)} placeholder="Question" />
+                      </td>
+                      <td className="p-3">
+                        <Textarea value={item.answer} onChange={(e) => updateFaq(index, "answer", e.target.value)} placeholder="Answer" rows={3} />
+                      </td>
+                      <td className="p-3">
+                        <button type="button" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700" onClick={() => removeFaq(index)}>
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
           <button type="button" className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700" onClick={addFaq}>
             Add FAQ Item
           </button>
@@ -473,6 +638,7 @@ export default function CoursesPageContentAdmin() {
           </SaveButton>
         </SaveRow>
       </Section>
+      ) : null}
 
       <button
         type="button"

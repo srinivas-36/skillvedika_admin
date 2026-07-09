@@ -1,3 +1,4 @@
+import { Pencil, Trash2, X } from "lucide-react";
 import type { ReactNode } from "react";
 
 export function HomeEditorShell({
@@ -63,3 +64,99 @@ export const btnSecondary =
   "inline-flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 disabled:opacity-45";
 export const btnDanger =
   "inline-flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-100";
+
+const iconBtnBase =
+  "inline-flex h-9 w-9 items-center justify-center rounded-lg border transition focus:outline-none focus:ring-2 focus:ring-[var(--admin-accent)]/25";
+
+export function AdminIconActions({
+  onEdit,
+  onDelete,
+  editLabel = "Edit",
+  deleteLabel = "Delete",
+  hideDelete = false,
+}: {
+  onEdit: () => void;
+  onDelete?: () => void;
+  editLabel?: string;
+  deleteLabel?: string;
+  hideDelete?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={onEdit}
+        title={editLabel}
+        aria-label={editLabel}
+        className={`${iconBtnBase} border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100`}
+      >
+        <Pencil className="h-4 w-4" />
+      </button>
+      {!hideDelete ? (
+        <button
+          type="button"
+          onClick={onDelete}
+          title={deleteLabel}
+          aria-label={deleteLabel}
+          className={`${iconBtnBase} border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100`}
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+export function AdminModal({
+  open,
+  title,
+  onClose,
+  children,
+  footer,
+  size = "default",
+}: {
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  footer?: ReactNode;
+  size?: "default" | "large" | "xlarge";
+}) {
+  if (!open) return null;
+
+  const widthClass =
+    size === "xlarge" ? "max-w-6xl" : size === "large" ? "max-w-4xl" : "max-w-2xl";
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-slate-900/50"
+        onClick={onClose}
+        aria-label="Close dialog"
+      />
+      <div
+        className={`relative z-10 flex max-h-[90vh] w-full ${widthClass} flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-modal-title"
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-6 py-4">
+          <h3 id="admin-modal-title" className="text-lg font-bold text-slate-900">
+            {title}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="overflow-y-auto px-6 py-4">{children}</div>
+        {footer ? <div className="border-t border-slate-100 px-6 py-4">{footer}</div> : null}
+      </div>
+    </div>
+  );
+}

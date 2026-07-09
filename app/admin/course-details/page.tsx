@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   HomeEditorShell,
   EditorPanel,
-  btnDanger,
+  AdminIconActions,
+  AdminModal,
   btnPrimary,
   btnSecondary,
   fieldLabel,
@@ -35,6 +36,11 @@ type SectionMeta = {
   batches_heading?: string;
   blogs_heading?: string;
   faqs_heading?: string;
+
+  // Scrolling marquee (hero bottom)
+  scrolling_enabled?: boolean;
+  scrolling_location?: "course" | "home" | "both";
+  scrolling_items?: string;
 };
 type SectionMetaKey = keyof SectionMeta;
 
@@ -192,6 +198,9 @@ export default function AdminCourseDetailsPage() {
     batches_heading: "",
     blogs_heading: "",
     faqs_heading: "",
+    scrolling_enabled: false,
+    scrolling_location: "course",
+    scrolling_items: "",
   });
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [courseDetails, setCourseDetails] = useState<AnyObj | null>(null);
@@ -236,6 +245,26 @@ export default function AdminCourseDetailsPage() {
     rating: 0,
     category: 0,
   });
+  const [courseSearchQuery, setCourseSearchQuery] = useState("");
+  const [sectionSearchQuery, setSectionSearchQuery] = useState("");
+  const [itemModalSection, setItemModalSection] = useState<SectionName | null>(null);
+  const [savingSectionItem, setSavingSectionItem] = useState(false);
+  const [savingScrolling, setSavingScrolling] = useState(false);
+  const modalScrollYRef = useRef<number>(0);
+
+  function matchesSearch(query: string, ...values: (string | number | boolean | null | undefined)[]) {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return values.some((v) => String(v ?? "").toLowerCase().includes(q));
+  }
+
+  function formatItemCell(value: unknown, fieldKey?: string): string {
+    if (fieldKey === "content" && typeof value === "string") {
+      return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+    }
+    if (typeof value === "boolean") return value ? "Yes" : "No";
+    return String(value ?? "—");
+  }
 
   function slugify(value: string) {
     return value
@@ -277,8 +306,29 @@ export default function AdminCourseDetailsPage() {
     setError(null);
     setEditingBySection((prev) => ({ ...prev, [section]: null }));
     setFormBySection((prev) => ({ ...prev, [section]: emptyFormFor(section) }));
-    scrollToEl(`course-details-${section}`);
+    setItemModalSection(section);
   }
+
+  function closeItemModal() {
+    if (itemModalSection) {
+      setEditingBySection((prev) => ({ ...prev, [itemModalSection]: null }));
+      setFormBySection((prev) => ({ ...prev, [itemModalSection]: emptyFormFor(itemModalSection) }));
+    }
+    setItemModalSection(null);
+  }
+
+  // Prevent background scroll and page "jump" when opening the fixed modal.
+  useEffect(() => {
+    if (!itemModalSection) return;
+    modalScrollYRef.current = window.scrollY;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.scrollTo({ top: modalScrollYRef.current });
+    };
+  }, [itemModalSection]);
 
   useEffect(() => {
     if (!getAccessToken()) {
@@ -341,14 +391,6 @@ export default function AdminCourseDetailsPage() {
       setError("Description is required.");
       return;
     }
-    if (!String(courseForm.duration ?? "").trim()) {
-      setError("Duration is required.");
-      return;
-    }
-    if (!String(courseForm.price ?? "").trim()) {
-      setError("Price is required.");
-      return;
-    }
     if (!courseForm.category) {
       setError("Select a category first.");
       return;
@@ -362,8 +404,8 @@ export default function AdminCourseDetailsPage() {
           title,
           slug,
           description: courseForm.description,
-          duration: courseForm.duration,
-          price: courseForm.price,
+          duration: String(courseForm.duration ?? "").trim(),
+          price: String(courseForm.price ?? "").trim(),
           rating: Number(courseForm.rating) || 0,
           category: Number(courseForm.category),
         }),
@@ -435,6 +477,9 @@ export default function AdminCourseDetailsPage() {
           batches_heading: String(meta.batches_heading ?? ""),
           blogs_heading: String(meta.blogs_heading ?? ""),
           faqs_heading: String(meta.faqs_heading ?? ""),
+          scrolling_enabled: Boolean(meta.scrolling_enabled),
+          scrolling_location: meta.scrolling_location ?? "course",
+          scrolling_items: String(meta.scrolling_items ?? ""),
         });
       }
 
@@ -479,6 +524,9 @@ export default function AdminCourseDetailsPage() {
         batches_heading: "",
         blogs_heading: "",
         faqs_heading: "",
+        scrolling_enabled: false,
+        scrolling_location: "course",
+        scrolling_items: "",
       });
     } finally {
       setLoadingDetails(false);
@@ -512,6 +560,41 @@ export default function AdminCourseDetailsPage() {
       await loadCourseDetails(selectedSlug);
     } catch {
       setError("Could not update section headings.");
+    }
+  }
+
+  async function saveScrollingBanner() {
+    setError(null);
+    setMessage(null);
+    if (!getAccessToken()) {
+      router.replace("/admin");
+      return;
+    }
+    if (!selectedSlug) {
+      setError("Select a course first.");
+      return;
+    }
+
+    setSavingScrolling(true);
+    try {
+      const res = await fetch(apiUrl(`/api/course-details/course/${selectedSlug}/meta/`), {
+        method: "PUT",
+        headers: authHeadersJson(),
+        body: JSON.stringify(metaForm),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(parseApiError(body));
+        return;
+      }
+
+      setMessage("Scrolling banner saved.");
+      await loadCourseDetails(selectedSlug);
+    } catch {
+      setError("Could not save scrolling banner.");
+    } finally {
+      setSavingScrolling(false);
     }
   }
 
@@ -583,8 +666,8 @@ export default function AdminCourseDetailsPage() {
     }
   }, [selectedSlug]);
 
-  async function saveSectionItem(section: SectionName, e: React.FormEvent) {
-    e.preventDefault();
+  async function saveSectionItem(section: SectionName, e?: React.FormEvent) {
+    e?.preventDefault();
     setError(null);
     setMessage(null);
 
@@ -613,6 +696,7 @@ export default function AdminCourseDetailsPage() {
     }
 
     try {
+      setSavingSectionItem(true);
       const editingId = editingBySection[section];
       const endpoint = editingId
         ? `/api/course-details/course/${selectedSlug}/${section}/${editingId}/`
@@ -630,9 +714,12 @@ export default function AdminCourseDetailsPage() {
       setMessage(editingId ? `${section} item updated.` : `${section} item added.`);
       setEditingBySection((prev) => ({ ...prev, [section]: null }));
       setFormBySection((prev) => ({ ...prev, [section]: emptyFormFor(section) }));
+      setItemModalSection(null);
       await loadCourseDetails(selectedSlug);
     } catch {
       setError("Could not save section item.");
+    } finally {
+      setSavingSectionItem(false);
     }
   }
 
@@ -650,10 +737,11 @@ export default function AdminCourseDetailsPage() {
       ...prev,
       [section]: typeof item.id === "number" ? item.id : null,
     }));
-    scrollToEl(`course-details-${section}`);
+    setItemModalSection(section);
   }
 
   async function handleDelete(section: SectionName, itemId: number) {
+    if (!confirm("Delete this item permanently? This cannot be undone.")) return;
     setError(null);
     setMessage(null);
     if (!selectedSlug) return;
@@ -672,6 +760,7 @@ export default function AdminCourseDetailsPage() {
       if (editingBySection[section] === itemId) {
         setEditingBySection((prev) => ({ ...prev, [section]: null }));
         setFormBySection((prev) => ({ ...prev, [section]: emptyFormFor(section) }));
+        setItemModalSection((current) => (current === section ? null : current));
       }
       setMessage("Item deleted.");
       await loadCourseDetails(selectedSlug);
@@ -698,34 +787,82 @@ export default function AdminCourseDetailsPage() {
 
       <EditorPanel title="Select course">
         <div id="course-details-course-select" />
-        <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
-          <div>
-            <label className={fieldLabel}>Course</label>
-            <select className={inputClass} value={selectedSlug} onChange={(e) => setSelectedSlug(e.target.value)}>
-              {courses.map((c) => (
-                <option key={c.id} value={c.slug}>
-                  {c.title} ({c.slug})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-wrap gap-2 justify-end">
-            <button
-              type="button"
-              className={btnSecondary}
-              onClick={() => setShowAddCourse(true)}
-            >
-              Add New Course
-            </button>
-            <button type="button" className={btnPrimary} onClick={() => void loadCourseDetails(selectedSlug)} disabled={loadingDetails}>
-              {loadingDetails ? "Refreshing..." : "Refresh"}
-            </button>
-          </div>
+        <div className="mb-4">
+          <input
+            type="search"
+            className={inputClass}
+            value={courseSearchQuery}
+            onChange={(e) => setCourseSearchQuery(e.target.value)}
+            placeholder="Search courses by title or slug..."
+          />
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full min-w-[640px] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                <th className="p-3 font-bold text-slate-700">ID</th>
+                <th className="p-3 font-bold text-slate-700">Title</th>
+                <th className="p-3 font-bold text-slate-700">Slug</th>
+                <th className="p-3 font-bold text-slate-700">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {courses
+                .filter((c) => matchesSearch(courseSearchQuery, c.id, c.title, c.slug))
+                .map((c) => (
+                  <tr
+                    key={c.id}
+                    className={`border-t border-slate-100 align-top hover:bg-slate-50/80 ${selectedSlug === c.slug ? "bg-amber-50/60" : ""}`}
+                  >
+                    <td className="p-3 font-mono text-xs text-slate-500">{c.id}</td>
+                    <td className="p-3 font-semibold text-slate-900">{c.title}</td>
+                    <td className="p-3 font-mono text-xs text-slate-600">{c.slug}</td>
+                    <td className="p-3">
+                      <AdminIconActions
+                        hideDelete
+                        editLabel="Edit course sections"
+                        onEdit={() => {
+                          setSelectedSlug(c.slug);
+                          scrollToEl("course-details-sections");
+                        }}
+                      />
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2 justify-end">
+          <button
+            type="button"
+            className={btnSecondary}
+            onClick={() => setShowAddCourse(true)}
+          >
+            Add New Course
+          </button>
+          <button type="button" className={btnPrimary} onClick={() => void loadCourseDetails(selectedSlug)} disabled={loadingDetails}>
+            {loadingDetails ? "Refreshing..." : "Refresh"}
+          </button>
         </div>
       </EditorPanel>
 
       {showAddCourse ? (
-        <EditorPanel title="Add Course">
+        <AdminModal
+          open
+          size="large"
+          title="Add course"
+          onClose={() => setShowAddCourse(false)}
+          footer={
+            <div className="flex flex-wrap justify-end gap-3">
+              <button type="button" className={btnSecondary} onClick={() => setShowAddCourse(false)}>
+                Cancel
+              </button>
+              <button type="button" className={btnPrimary} onClick={() => void createCourse()}>
+                Create course
+              </button>
+            </div>
+          }
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className={fieldLabel}>Title *</label>
@@ -769,7 +906,6 @@ export default function AdminCourseDetailsPage() {
                 value={courseForm.duration}
                 onChange={(e) => setCourseForm((p) => ({ ...p, duration: e.target.value }))}
                 placeholder="e.g. 4 weeks"
-                required
               />
             </div>
             <div>
@@ -779,7 +915,6 @@ export default function AdminCourseDetailsPage() {
                 value={courseForm.price}
                 onChange={(e) => setCourseForm((p) => ({ ...p, price: e.target.value }))}
                 placeholder="e.g. ₹299"
-                required
               />
             </div>
             <div>
@@ -809,15 +944,7 @@ export default function AdminCourseDetailsPage() {
               </select>
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
-            <button type="button" className={btnPrimary} onClick={() => void createCourse()}>
-              Create Course
-            </button>
-            <button type="button" className={btnSecondary} onClick={() => setShowAddCourse(false)}>
-              Cancel
-            </button>
-          </div>
-        </EditorPanel>
+        </AdminModal>
       ) : null}
 
       <EditorPanel title="SEO">
@@ -865,6 +992,72 @@ export default function AdminCourseDetailsPage() {
         </form>
       </EditorPanel>
 
+      <EditorPanel title="Scrolling Banner (Hero Bottom)">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className={fieldLabel}>Enable scrolling</label>
+            <select
+              className={inputClass}
+              value={metaForm.scrolling_enabled ? "yes" : "no"}
+              onChange={(e) =>
+                setMetaForm((prev) => ({
+                  ...prev,
+                  scrolling_enabled: e.target.value === "yes",
+                }))
+              }
+            >
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </div>
+
+          <div>
+            <label className={fieldLabel}>Show on</label>
+            <select
+              className={inputClass}
+              value={metaForm.scrolling_location ?? "course"}
+              onChange={(e) =>
+                setMetaForm((prev) => ({
+                  ...prev,
+                  scrolling_location: e.target.value as "course" | "home" | "both",
+                }))
+              }
+            >
+              <option value="course">Course details page</option>
+              <option value="home">Home page</option>
+              <option value="both">Both pages</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <label className={fieldLabel}>Scrolling items (one per line)</label>
+          <textarea
+            className={textareaClass}
+            rows={4}
+            value={String(metaForm.scrolling_items ?? "")}
+            onChange={(e) =>
+              setMetaForm((prev) => ({
+                ...prev,
+                scrolling_items: e.target.value,
+              }))
+            }
+            placeholder={"Example:\nJavaScript\nReact\nNext.js"}
+          />
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            className={btnPrimary}
+            onClick={() => void saveScrollingBanner()}
+            disabled={savingScrolling}
+          >
+            {savingScrolling ? "Saving..." : "Save scrolling"}
+          </button>
+        </div>
+      </EditorPanel>
+
       <EditorPanel title="Course details table">
         <div id="course-details-sections" className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -875,12 +1068,25 @@ export default function AdminCourseDetailsPage() {
               Jump to Sections
             </button>
           </div>
+          <div>
+            <input
+              type="search"
+              className={inputClass}
+              value={sectionSearchQuery}
+              onChange={(e) => setSectionSearchQuery(e.target.value)}
+              placeholder="Search items across all sections..."
+            />
+          </div>
 
           {SECTIONS.map((section) => {
             const fields = SECTION_FIELDS[section];
-            const items = sections[section] ?? [];
-            const editingId = editingBySection[section];
-            const form = formBySection[section];
+            const items = (sections[section] ?? []).filter((item) =>
+              matchesSearch(
+                sectionSearchQuery,
+                item.id as string | number | boolean | null | undefined,
+                ...fields.map((f) => item[f.key] as string | number | boolean | null | undefined),
+              ),
+            );
             const headingConfig = SECTION_HEADING_META[section];
             return (
               <EditorPanel
@@ -919,7 +1125,8 @@ export default function AdminCourseDetailsPage() {
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-sm text-slate-600">
-                    {items.length} {items.length === 1 ? "item" : "items"}
+                    {(sections[section] ?? []).length} {(sections[section] ?? []).length === 1 ? "item" : "items"}
+                    {sectionSearchQuery ? ` (${items.length} shown)` : ""}
                   </p>
                   <button
                     type="button"
@@ -930,165 +1137,44 @@ export default function AdminCourseDetailsPage() {
                   </button>
                 </div>
 
-                <div className="mt-4 space-y-3">
+                <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
                   {items.length === 0 ? (
-                    <p className="text-sm text-[var(--admin-muted)]">
-                      No items yet.
+                    <p className="p-4 text-sm text-[var(--admin-muted)]">
+                      {sectionSearchQuery ? "No items match your search." : "No items yet."}
                     </p>
                   ) : (
-                    items.map((item) => (
-                      <div
-                        key={`${section}:${String(item.id)}`}
-                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                              ID: {String(item.id ?? "—")}
-                            </div>
-                            <div className="mt-2 space-y-1">
-                              {fields.map((f) => (
-                                <div key={f.key} className="grid gap-2 sm:grid-cols-[180px_1fr]">
-                                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    {f.label}
-                                  </span>
-                                  <span className="whitespace-pre-wrap break-words text-slate-800">
-  {f.type === "checkbox" ? (
-    Boolean(item[f.key]) ? "Yes" : "No"
-  ) : f.key === "content" ? (
-    <div
-      dangerouslySetInnerHTML={{
-        __html: String(item[f.key] ?? ""),
-      }}
-    />
-  ) : (
-    String(item[f.key] ?? "—")
-  )}
-</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="flex flex-col gap-2 sm:flex-row">
-                            <button
-                              type="button"
-                              onClick={() => startEdit(section, item)}
-                              className="rounded-lg bg-amber-400 px-3 py-1.5 text-xs font-bold text-[var(--admin-navy)] transition hover:bg-amber-300"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(section, Number(item.id))}
-                              className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-rose-700"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))
+                    <table className="w-full min-w-[720px] border-collapse text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                          <th className="p-3 font-bold text-slate-700">ID</th>
+                          {fields.map((f) => (
+                            <th key={f.key} className="p-3 font-bold text-slate-700">
+                              {f.label}
+                            </th>
+                          ))}
+                          <th className="p-3 font-bold text-slate-700">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((item) => (
+                          <tr key={`${section}:${String(item.id)}`} className="border-t border-slate-100 align-top hover:bg-slate-50/80">
+                            <td className="p-3 font-mono text-xs text-slate-500">{String(item.id ?? "—")}</td>
+                            {fields.map((f) => (
+                              <td key={f.key} className="p-3 text-slate-800 whitespace-pre-wrap break-words">
+                                {formatItemCell(item[f.key], f.key)}
+                              </td>
+                            ))}
+                            <td className="p-3">
+                              <AdminIconActions
+                                onEdit={() => startEdit(section, item)}
+                                onDelete={() => void handleDelete(section, Number(item.id))}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   )}
-                </div>
-
-                <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-4">
-                  <form onSubmit={(e) => void saveSectionItem(section, e)} className="space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-slate-800">
-                        {editingId ? `Edit item #${editingId}` : "Add new item"}
-                      </p>
-                      {editingId ? (
-                        <button
-                          type="button"
-                          className={btnSecondary}
-                          onClick={() => {
-                            setEditingBySection((prev) => ({ ...prev, [section]: null }));
-                            setFormBySection((prev) => ({
-                              ...prev,
-                              [section]: emptyFormFor(section),
-                            }));
-                          }}
-                        >
-                          Cancel edit
-                        </button>
-                      ) : null}
-                    </div>
-
-                    {fields.map((field) => (
-                      <div key={field.key}>
-                        <label className={fieldLabel}>{field.label}</label>
-                        {field.type === "textarea" ? (
-                          section === "about" ||
-                          section === "curriculum" ||
-                          section === "placement-support" ? (
-                            <TipTapEditor
-                              value={String(form[field.key] ?? "")}
-                              onChange={(val: string) =>
-                                setFormBySection((prev) => ({
-                                  ...prev,
-                                  [section]: {
-                                    ...prev[section],
-                                    [field.key]: val,
-                                  },
-                                }))
-                              }
-                            />
-                          ) : (
-                            <textarea
-                              className={textareaClass}
-                              rows={3}
-                              value={String(form[field.key] ?? "")}
-                              onChange={(e) =>
-                                setFormBySection((prev) => ({
-                                  ...prev,
-                                  [section]: {
-                                    ...prev[section],
-                                    [field.key]: e.target.value,
-                                  },
-                                }))
-                              }
-                            />
-                          )
-                        ) : field.type === "checkbox" ? (
-                          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(form[field.key])}
-                              onChange={(e) =>
-                                setFormBySection((prev) => ({
-                                  ...prev,
-                                  [section]: {
-                                    ...prev[section],
-                                    [field.key]: e.target.checked,
-                                  },
-                                }))
-                              }
-                            />
-                            Mark as limited
-                          </label>
-                        ) : (
-                          <input
-                            type={field.type === "date" ? "date" : "text"}
-                            className={inputClass}
-                            value={String(form[field.key] ?? "")}
-                            onChange={(e) =>
-                              setFormBySection((prev) => ({
-                                ...prev,
-                                [section]: {
-                                  ...prev[section],
-                                  [field.key]: e.target.value,
-                                },
-                              }))
-                            }
-                          />
-                        )}
-                      </div>
-                    ))}
-
-                    <button type="submit" className={btnPrimary}>
-                      {editingId ? "Save Changes" : "Save"}
-                    </button>
-                  </form>
                 </div>
               </EditorPanel>
             );
@@ -1096,38 +1182,123 @@ export default function AdminCourseDetailsPage() {
         </div>
       </EditorPanel>
 
-      <EditorPanel title="Course data preview">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Course ID</p>
-            <p className="mt-1 text-sm font-semibold text-slate-900">{String(courseDetails?.id ?? "-")}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Title</p>
-            <p className="mt-1 text-sm font-semibold text-slate-900">{String(courseDetails?.title ?? "-")}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Slug</p>
-            <p className="mt-1 text-sm font-semibold text-slate-900">{String(courseDetails?.slug ?? "-")}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Duration</p>
-            <p className="mt-1 text-sm font-semibold text-slate-900">{String(courseDetails?.duration ?? "-")}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Price</p>
-            <p className="mt-1 text-sm font-semibold text-slate-900">{String(courseDetails?.price ?? "-")}</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Rating</p>
-            <p className="mt-1 text-sm font-semibold text-slate-900">{String(courseDetails?.rating ?? "-")}</p>
-          </div>
-          <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Description</p>
-            <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{String(courseDetails?.description ?? "-")}</p>
-          </div>
-        </div>
-      </EditorPanel>
+      {itemModalSection ? (
+        <AdminModal
+          open
+          size="xlarge"
+          title={
+            editingBySection[itemModalSection]
+              ? `Edit ${itemModalSection} item #${editingBySection[itemModalSection]}`
+              : `Add ${itemModalSection} item`
+          }
+          onClose={closeItemModal}
+          footer={
+            <div className="flex flex-wrap justify-end gap-3">
+              <button type="button" className={btnSecondary} onClick={closeItemModal}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="course-details-item-modal-form"
+                className={btnPrimary}
+                disabled={savingSectionItem}
+              >
+                {savingSectionItem
+                  ? "Saving..."
+                  : editingBySection[itemModalSection]
+                    ? "Save changes"
+                    : "Add item"}
+              </button>
+            </div>
+          }
+        >
+          <form
+            id="course-details-item-modal-form"
+            onSubmit={(e) => void saveSectionItem(itemModalSection, e)}
+            className="space-y-4"
+          >
+            {SECTION_FIELDS[itemModalSection].map((field) => {
+              const form = formBySection[itemModalSection];
+              const section = itemModalSection;
+              return (
+                <div key={field.key}>
+                  <label className={fieldLabel}>{field.label}</label>
+                  {field.type === "textarea" ? (
+                    section === "about" ||
+                    section === "curriculum" ||
+                    section === "placement-support" ||
+                    section === "corporate-training" ? (
+                      <TipTapEditor
+                        value={String(form[field.key] ?? "")}
+                        onChange={(val: string) =>
+                          setFormBySection((prev) => ({
+                            ...prev,
+                            [section]: {
+                              ...prev[section],
+                              [field.key]: val,
+                            },
+                          }))
+                        }
+                        scrollContent
+                        contentMaxHeightClassName="max-h-[460px]"
+                      />
+                    ) : (
+                      <textarea
+                        className={textareaClass}
+                        rows={8}
+                        value={String(form[field.key] ?? "")}
+                        onChange={(e) =>
+                          setFormBySection((prev) => ({
+                            ...prev,
+                            [section]: {
+                              ...prev[section],
+                              [field.key]: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    )
+                  ) : field.type === "checkbox" ? (
+                    <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(form[field.key])}
+                        onChange={(e) =>
+                          setFormBySection((prev) => ({
+                            ...prev,
+                            [section]: {
+                              ...prev[section],
+                              [field.key]: e.target.checked,
+                            },
+                          }))
+                        }
+                      />
+                      Mark as limited
+                    </label>
+                  ) : (
+                    <input
+                      type={field.type === "date" ? "date" : "text"}
+                      className={inputClass}
+                      value={String(form[field.key] ?? "")}
+                      onChange={(e) =>
+                        setFormBySection((prev) => ({
+                          ...prev,
+                          [section]: {
+                            ...prev[section],
+                            [field.key]: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </form>
+        </AdminModal>
+      ) : null}
+
+      {/* Course preview panel removed intentionally. */}
     </HomeEditorShell>
   );
 }

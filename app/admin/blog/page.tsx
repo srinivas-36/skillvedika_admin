@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { HomeEditorShell, EditorPanel, btnDanger, btnPrimary, btnSecondary, fieldLabel, inputClass, textareaClass } from "@/components/admin/HomeEditorShell";
+import {
+  HomeEditorShell,
+  EditorPanel,
+  AdminIconActions,
+  AdminModal,
+  btnPrimary,
+  btnSecondary,
+  fieldLabel,
+  inputClass,
+  textareaClass,
+} from "@/components/admin/HomeEditorShell";
 import TipTapEditor from "@/components/editor/TipTapEditor";
 import { apiUrl } from "@/lib/api";
 import { authHeadersBearer, authHeadersJson, authHeadersMultipart, getAccessToken } from "@/lib/auth";
@@ -137,6 +147,7 @@ export default function AdminBlogPage() {
   const [error, setError] = useState<string | null>(null);
   const [blogs, setBlogs] = useState<Blog[]>([]);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
+  const [formModalOpen, setFormModalOpen] = useState(false);
   const [form, setForm] = useState<BlogForm>({ ...emptyForm });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
@@ -145,6 +156,16 @@ export default function AdminBlogPage() {
     meta_description: "",
     meta_keywords: "",
   });
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredBlogs = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return blogs;
+    return blogs.filter((b) =>
+      [b.id, b.slug, b.category, b.title, b.author, b.date, b.read_time, b.excerpt]
+        .some((v) => String(v ?? "").toLowerCase().includes(q)),
+    );
+  }, [blogs, searchQuery]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -305,10 +326,7 @@ export default function AdminBlogPage() {
         return;
       }
       setMessage(isEditing ? "Blog updated." : "Blog created.");
-      setEditingSlug(null);
-      setForm({ ...emptyForm });
-      setImageFile(null);
-      setImagePreview("");
+      closeFormModal();
       await load();
     } catch {
       setError("Network error while saving blog.");
@@ -318,6 +336,7 @@ export default function AdminBlogPage() {
   }
 
   async function handleDelete(slug: string) {
+    if (!confirm("Delete this blog post permanently? This cannot be undone.")) return;
     setError(null);
     setMessage(null);
     try {
@@ -330,14 +349,21 @@ export default function AdminBlogPage() {
         return;
       }
       if (editingSlug === slug) {
-        setEditingSlug(null);
-        setForm({ ...emptyForm });
+        closeFormModal();
       }
       setMessage("Blog deleted.");
       await load();
     } catch {
       setError("Could not delete blog.");
     }
+  }
+
+  function closeFormModal() {
+    setFormModalOpen(false);
+    setEditingSlug(null);
+    setForm({ ...emptyForm });
+    setImageFile(null);
+    setImagePreview("");
   }
 
   function startEdit(blog: Blog) {
@@ -347,16 +373,128 @@ export default function AdminBlogPage() {
     setImagePreview("");
     setMessage(null);
     setError(null);
+    setFormModalOpen(true);
   }
 
-  function resetForm() {
+  function startAdd() {
     setEditingSlug(null);
     setForm({ ...emptyForm });
     setImageFile(null);
     setImagePreview("");
     setMessage(null);
     setError(null);
+    setFormModalOpen(true);
   }
+
+  const blogFormFields = (
+    <form id="blog-modal-form" onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className={fieldLabel}>Slug *</label>
+          <input
+            className={inputClass}
+            maxLength={255}
+            value={form.slug}
+            onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
+          />
+          <p className="mt-1 text-xs text-slate-500">{form.slug.length}/255</p>
+        </div>
+        <div>
+          <label className={fieldLabel}>Category</label>
+          <select
+            className={inputClass}
+            value={form.category}
+            onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+          >
+            <option value="">Select category</option>
+            {categoryOptions.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="sm:col-span-2">
+          <label className={fieldLabel}>Title *</label>
+          <input className={inputClass} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
+        </div>
+        <div>
+          <label className={fieldLabel}>Author *</label>
+          <input className={inputClass} value={form.author} onChange={(e) => setForm((f) => ({ ...f, author: e.target.value }))} />
+        </div>
+        <div>
+          <label className={fieldLabel}>Date *</label>
+          <input type="date" className={inputClass} value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
+        </div>
+        <div>
+          <label className={fieldLabel}>Read Time</label>
+          <input className={inputClass} placeholder="e.g. 5 min read" value={form.read_time} onChange={(e) => setForm((f) => ({ ...f, read_time: e.target.value }))} />
+        </div>
+      </div>
+
+      <div>
+        <label className={fieldLabel}>Excerpt</label>
+        <textarea className={textareaClass} rows={3} value={form.excerpt} onChange={(e) => setForm((f) => ({ ...f, excerpt: e.target.value }))} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <label className={fieldLabel}>SEO Meta Title</label>
+          <input
+            className={inputClass}
+            value={form.meta_title ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, meta_title: e.target.value }))}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={fieldLabel}>SEO Meta Description</label>
+          <textarea
+            className={textareaClass}
+            rows={3}
+            value={form.meta_description ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, meta_description: e.target.value }))}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={fieldLabel}>SEO Meta Keywords (comma-separated)</label>
+          <input
+            className={inputClass}
+            value={form.meta_keywords ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, meta_keywords: e.target.value }))}
+          />
+        </div>
+      </div>
+      <div>
+        <label className={fieldLabel}>Blog Image Upload</label>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+          className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-[var(--admin-accent)] file:px-3 file:py-2 file:text-white file:font-semibold"
+        />
+        {imagePreview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imagePreview} alt="Selected blog upload preview" className="mt-3 h-28 w-auto rounded border border-slate-200" />
+        ) : form.image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={form.image_url} alt={form.title} className="mt-3 h-28 w-auto rounded border border-slate-200" />
+        ) : null}
+      </div>
+      <div>
+        <label className={fieldLabel}>Table of Contents (one line = one item)</label>
+        <textarea className={textareaClass} rows={4} value={form.toc_text} onChange={(e) => setForm((f) => ({ ...f, toc_text: e.target.value }))} />
+      </div>
+      <div>
+        <label className={fieldLabel}>Blog Content</label>
+        <TipTapEditor
+          value={form.paragraphs_text}
+          onChange={(html) => setForm((f) => ({ ...f, paragraphs_text: html }))}
+          placeholder="Write your blog content here..."
+          scrollContent
+          contentMaxHeightClassName="max-h-[360px]"
+        />
+      </div>
+    </form>
+  );
 
   useEffect(() => {
     if (!imageFile) {
@@ -416,159 +554,81 @@ export default function AdminBlogPage() {
         </div>
       </EditorPanel>
 
-      <EditorPanel title={isEditing ? "Edit blog post" : "Create blog post"}>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className={fieldLabel}>Slug *</label>
-              <input
-                className={inputClass}
-                maxLength={255}
-                value={form.slug}
-                onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
-              />
-              <p className="mt-1 text-xs text-slate-500">{form.slug.length}/255</p>
-            </div>
-            <div>
-              <label className={fieldLabel}>Category</label>
-              <select
-                className={inputClass}
-                value={form.category}
-                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-              >
-                <option value="">Select category</option>
-                {categoryOptions.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="sm:col-span-2">
-              <label className={fieldLabel}>Title *</label>
-              <input className={inputClass} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Author *</label>
-              <input className={inputClass} value={form.author} onChange={(e) => setForm((f) => ({ ...f, author: e.target.value }))} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Date *</label>
-              <input type="date" className={inputClass} value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Read Time</label>
-              <input className={inputClass} placeholder="e.g. 5 min read" value={form.read_time} onChange={(e) => setForm((f) => ({ ...f, read_time: e.target.value }))} />
-            </div>
-          </div>
-
-          <div>
-            <label className={fieldLabel}>Excerpt</label>
-            <textarea className={textareaClass} rows={3} value={form.excerpt} onChange={(e) => setForm((f) => ({ ...f, excerpt: e.target.value }))} />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className={fieldLabel}>SEO Meta Title</label>
-              <input
-                className={inputClass}
-                value={form.meta_title ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, meta_title: e.target.value }))}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className={fieldLabel}>SEO Meta Description</label>
-              <textarea
-                className={textareaClass}
-                rows={3}
-                value={form.meta_description ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, meta_description: e.target.value }))}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className={fieldLabel}>SEO Meta Keywords (comma-separated)</label>
-              <input
-                className={inputClass}
-                value={form.meta_keywords ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, meta_keywords: e.target.value }))}
-              />
-            </div>
-          </div>
-          <div>
-            <label className={fieldLabel}>Blog Image Upload</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-[var(--admin-accent)] file:px-3 file:py-2 file:text-white file:font-semibold"
-            />
-            {imagePreview ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={imagePreview} alt="Selected blog upload preview" className="mt-3 h-28 w-auto rounded border border-slate-200" />
-            ) : form.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={form.image_url} alt={form.title} className="mt-3 h-28 w-auto rounded border border-slate-200" />
-            ) : null}
-          </div>
-          <div>
-            <label className={fieldLabel}>Table of Contents (one line = one item)</label>
-            <textarea className={textareaClass} rows={4} value={form.toc_text} onChange={(e) => setForm((f) => ({ ...f, toc_text: e.target.value }))} />
-          </div>
-          <div>
-            <label className={fieldLabel}>Blog Content</label>
-            <TipTapEditor
-              value={form.paragraphs_text}
-              onChange={(html) => setForm((f) => ({ ...f, paragraphs_text: html }))}
-              placeholder="Write your blog content here..."
-              scrollContent
-              contentMaxHeightClassName="max-h-[460px]"
-            />
-          </div>
-
-          <div className="flex gap-3">
-            <button type="submit" className={btnPrimary} disabled={saving}>
-              {saving ? "Saving..." : isEditing ? "Update Blog" : "Create Blog"}
-            </button>
-            {isEditing ? (
-              <button type="button" className={btnSecondary} onClick={resetForm}>
-                Cancel Edit
-              </button>
-            ) : null}
-          </div>
-        </form>
-      </EditorPanel>
-
       <EditorPanel title="All blog posts">
-        <div className="space-y-3">
-          {blogs.length === 0 ? <p className="text-sm text-slate-500">No blog posts yet.</p> : null}
-          {blogs.map((b) => (
-            <div key={b.id} className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 p-4">
-              <div className="flex items-start gap-3">
-                {resolveBlogImage(b) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={resolveBlogImage(b)}
-                    alt={b.title}
-                    className="h-14 w-20 rounded border border-slate-200 object-cover"
-                  />
-                ) : null}
-                <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{b.category || "Uncategorized"}</p>
-                <p className="text-base font-bold text-slate-900">{b.title}</p>
-                <p className="text-sm text-slate-600">/{b.slug} · {b.author} · {b.date}</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button type="button" className={btnSecondary} onClick={() => startEdit(b)}>
-                  Edit
-                </button>
-                <button type="button" className={btnDanger} onClick={() => handleDelete(b.slug)}>
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <input
+            type="search"
+            className={`${inputClass} max-w-md`}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search blogs by title, slug, author, category..."
+          />
+          <button type="button" className={btnPrimary} onClick={startAdd}>
+            Add blog
+          </button>
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full min-w-[900px] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                <th className="p-3 font-bold text-slate-700">ID</th>
+                <th className="p-3 font-bold text-slate-700">Title</th>
+                <th className="p-3 font-bold text-slate-700">Slug</th>
+                <th className="p-3 font-bold text-slate-700">Category</th>
+                <th className="p-3 font-bold text-slate-700">Author</th>
+                <th className="p-3 font-bold text-slate-700">Date</th>
+                <th className="p-3 font-bold text-slate-700">Read time</th>
+                <th className="min-w-[220px] p-3 font-bold text-slate-700">Excerpt</th>
+                <th className="p-3 font-bold text-slate-700">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredBlogs.map((b) => (
+                <tr key={b.id} className="border-t border-slate-100 align-top hover:bg-slate-50/80">
+                  <td className="p-3 font-mono text-xs text-slate-500">{b.id}</td>
+                  <td className="p-3 font-semibold text-slate-900">{b.title}</td>
+                  <td className="p-3 font-mono text-xs text-slate-600">/{b.slug}</td>
+                  <td className="p-3 text-slate-600">{b.category || "—"}</td>
+                  <td className="p-3 text-slate-600">{b.author}</td>
+                  <td className="p-3 text-slate-600">{b.date}</td>
+                  <td className="p-3 text-slate-600">{b.read_time}</td>
+                  <td className="p-3 text-slate-700 whitespace-pre-wrap break-words">{b.excerpt}</td>
+                  <td className="p-3">
+                    <AdminIconActions
+                      onEdit={() => startEdit(b)}
+                      onDelete={() => void handleDelete(b.slug)}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filteredBlogs.length === 0 ? (
+            <p className="p-8 text-center text-sm text-slate-500">
+              {searchQuery ? "No blog posts match your search." : "No blog posts yet."}
+            </p>
+          ) : null}
         </div>
       </EditorPanel>
+
+      <AdminModal
+        open={formModalOpen}
+        title={isEditing ? `Edit blog: ${form.title || editingSlug}` : "Add blog"}
+        onClose={closeFormModal}
+        size="large"
+        footer={
+          <div className="flex flex-wrap justify-end gap-3">
+            <button type="button" className={btnSecondary} onClick={closeFormModal}>
+              Cancel
+            </button>
+            <button type="submit" form="blog-modal-form" className={btnPrimary} disabled={saving}>
+              {saving ? "Saving..." : isEditing ? "Save changes" : "Add blog"}
+            </button>
+          </div>
+        }
+      >
+        {blogFormFields}
+      </AdminModal>
     </HomeEditorShell>
   );
 }
