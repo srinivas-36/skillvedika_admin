@@ -37,6 +37,8 @@ type StudentApplication = {
 
 type TabKey = "instructors" | "students";
 
+const MESSAGE_PREVIEW_LENGTH = 80;
+
 function requestedCourse(app: StudentApplication): string {
   if (app.course_title && app.course_title.trim()) return app.course_title.trim();
   const msg = (app.message ?? "").trim();
@@ -44,14 +46,48 @@ function requestedCourse(app: StudentApplication): string {
   return fromMessage || "-";
 }
 
+function ExpandableMessage({ text }: { text?: string | null }) {
+  const [expanded, setExpanded] = useState(false);
+  const full = (text ?? "").trim();
+
+  if (!full) return <span className="text-slate-400">-</span>;
+
+  const needsToggle = full.length > MESSAGE_PREVIEW_LENGTH;
+  const preview = needsToggle
+    ? `${full.slice(0, MESSAGE_PREVIEW_LENGTH).trimEnd()}…`
+    : full;
+
+  return (
+    <div className="max-w-[240px]">
+      <p className="text-slate-700 whitespace-pre-wrap break-words leading-relaxed">
+        {expanded || !needsToggle ? full : preview}
+      </p>
+      {needsToggle ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-1 text-xs font-semibold text-[var(--admin-accent)] hover:underline"
+        >
+          {expanded ? "Show less" : "Read more"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export default function ApplicationsPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>("instructors");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [instructorApps, setInstructorApps] = useState<InstructorApplication[]>([]);
   const [studentApps, setStudentApps] = useState<StudentApplication[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<
+    | { type: "instructor" | "student"; id: number; name: string }
+    | null
+  >(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -137,6 +173,7 @@ export default function ApplicationsPage() {
   async function deleteInstructor(id: number) {
     setActionLoading(`inst-${id}-delete`);
     setError(null);
+    setSuccess(null);
     try {
       const res = await fetch(apiUrl(`/api/instructor/applications/${id}/`), {
         method: "DELETE",
@@ -146,6 +183,8 @@ export default function ApplicationsPage() {
         setError("Could not delete instructor application.");
         return;
       }
+      setDeleteConfirm(null);
+      setSuccess("Lead deleted successfully.");
       await load();
     } catch {
       setError("Could not delete instructor application.");
@@ -181,6 +220,7 @@ export default function ApplicationsPage() {
   async function deleteStudent(id: number) {
     setActionLoading(`stud-${id}-delete`);
     setError(null);
+    setSuccess(null);
     try {
       const res = await fetch(apiUrl(`/api/courses/counselling/${id}/`), {
         method: "DELETE",
@@ -190,11 +230,22 @@ export default function ApplicationsPage() {
         setError("Could not delete student application.");
         return;
       }
+      setDeleteConfirm(null);
+      setSuccess("Lead deleted successfully.");
       await load();
     } catch {
       setError("Could not delete student application.");
     } finally {
       setActionLoading(null);
+    }
+  }
+
+  function confirmDelete() {
+    if (!deleteConfirm) return;
+    if (deleteConfirm.type === "instructor") {
+      void deleteInstructor(deleteConfirm.id);
+    } else {
+      void deleteStudent(deleteConfirm.id);
     }
   }
 
@@ -238,6 +289,12 @@ export default function ApplicationsPage() {
         </p>
       ) : null}
 
+      {success ? (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {success}
+        </p>
+      ) : null}
+
       {loading ? (
         <p className="text-sm text-[var(--admin-muted)]">Loading leads...</p>
       ) : null}
@@ -268,7 +325,9 @@ export default function ApplicationsPage() {
                   <td className="p-3 text-slate-700">{app.phone}</td>
                   <td className="p-3 text-slate-700">{app.years_of_experience}</td>
                   <td className="p-3 text-slate-700 whitespace-pre-wrap break-words">{app.skills}</td>
-                  <td className="p-3 text-slate-700 whitespace-pre-wrap break-words">{app.message || "-"}</td>
+                  <td className="p-3">
+                    <ExpandableMessage text={app.message} />
+                  </td>
                   <td className="p-3">
                     <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
                       app.status === "approved"
@@ -301,7 +360,14 @@ export default function ApplicationsPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => deleteInstructor(app.id)}
+                        onClick={() => {
+                          setSuccess(null);
+                          setDeleteConfirm({
+                            type: "instructor",
+                            id: app.id,
+                            name: `${app.first_name} ${app.last_name}`.trim(),
+                          });
+                        }}
                         disabled={actionLoading != null}
                         className="rounded-md bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
                       >
@@ -378,7 +444,17 @@ export default function ApplicationsPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => deleteStudent(app.id)}
+                        onClick={() => {
+                          setSuccess(null);
+                          setDeleteConfirm({
+                            type: "student",
+                            id: app.id,
+                            name:
+                              `${app.first_name ?? ""} ${app.last_name ?? ""}`.trim() ||
+                              app.full_name ||
+                              "this lead",
+                          });
+                        }}
                         disabled={actionLoading != null}
                         className="rounded-md bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
                       >
@@ -395,6 +471,49 @@ export default function ApplicationsPage() {
               No student leads submitted yet.
             </p>
           ) : null}
+        </div>
+      ) : null}
+
+      {deleteConfirm ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-lead-title"
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
+          >
+            <h2
+              id="delete-lead-title"
+              className="text-lg font-bold text-[var(--admin-navy)]"
+            >
+              Confirm delete
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Are you sure you want to delete the lead for{" "}
+              <span className="font-semibold text-slate-900">
+                {deleteConfirm.name || "this lead"}
+              </span>
+              ? This action cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(null)}
+                disabled={actionLoading != null}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={actionLoading != null}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+              >
+                {actionLoading != null ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </div>
