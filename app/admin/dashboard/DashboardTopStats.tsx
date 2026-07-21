@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiUrl } from "@/lib/api";
 import { authHeadersBearer } from "@/lib/auth";
@@ -61,18 +62,39 @@ export default function DashboardTopStats({ coursesCount, categoriesCount, blogs
   }, []);
 
   const stats = [
-    { label: "Total courses", value: String(coursesCount), accent: accents[0] },
-    { label: "Categories", value: String(categoriesCount), accent: accents[1] },
-    { label: "Blog posts", value: String(blogsCount), accent: accents[2] },
-    { label: "Leads", value: loadingLeads ? "..." : String(leadsCount), accent: accents[3] },
+    {
+      label: "Total courses",
+      value: String(coursesCount),
+      accent: accents[0],
+      href: "/admin/courses",
+    },
+    {
+      label: "Categories",
+      value: String(categoriesCount),
+      accent: accents[1],
+      href: "/admin/categories",
+    },
+    {
+      label: "Blog posts",
+      value: String(blogsCount),
+      accent: accents[2],
+      href: "/admin/blog",
+    },
+    {
+      label: "Leads",
+      value: loadingLeads ? "..." : String(leadsCount),
+      accent: accents[3],
+      href: "/admin/leads",
+    },
   ];
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {stats.map((s) => (
-        <div
+        <Link
           key={s.label}
-          className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.5)] transition duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_36px_-22px_rgba(15,23,42,0.55)]"
+          href={s.href}
+          className="group relative block overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.5)] transition duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_36px_-22px_rgba(15,23,42,0.55)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--admin-accent)]"
         >
           <div
             className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${s.accent}`}
@@ -89,7 +111,10 @@ export default function DashboardTopStats({ coursesCount, categoriesCount, blogs
           <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
             <div className={`h-1.5 w-2/3 rounded-full bg-gradient-to-r ${s.accent}`} />
           </div>
-        </div>
+          <p className="mt-3 text-xs font-semibold text-[var(--admin-accent)] opacity-0 transition group-hover:opacity-100">
+            View {s.label.toLowerCase()} →
+          </p>
+        </Link>
       ))}
     </div>
   );

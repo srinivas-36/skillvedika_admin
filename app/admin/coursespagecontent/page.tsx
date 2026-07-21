@@ -9,6 +9,7 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import TipTapEditor from "@/components/editor/TipTapEditor";
+import { parseApiError } from "@/lib/cms-errors";
 
 const API = `${process.env.NEXT_PUBLIC_API_URL}/api/courses/courses-page-content/`;
 
@@ -319,7 +320,7 @@ export default function CoursesPageContentAdmin() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(JSON.stringify(data, null, 2) || `Save failed (${res.status})`);
+        setError(parseApiError(data) || `Save failed (${res.status})`);
         setSaving(null);
         return;
       }

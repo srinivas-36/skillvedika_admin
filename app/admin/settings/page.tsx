@@ -11,6 +11,7 @@ export default function SettingsPage() {
   const [settingId, setSettingId] = useState<number | null>(null);
   const [form, setForm] = useState({
     google_analytics_id: "",
+    google_ads_tag_id: "",
     whatsapp_number: "",
     whatsapp_message: "",
   });
@@ -26,6 +27,7 @@ export default function SettingsPage() {
       setSettingId(data[0].id);
       setForm({
         google_analytics_id: data[0].google_analytics_id ?? "",
+        google_ads_tag_id: data[0].google_ads_tag_id ?? "",
         whatsapp_number: data[0].whatsapp_number ?? "",
         whatsapp_message: data[0].whatsapp_message ?? "",
       });
@@ -44,6 +46,7 @@ export default function SettingsPage() {
     try {
       const payload = {
         google_analytics_id: form.google_analytics_id.trim(),
+        google_ads_tag_id: form.google_ads_tag_id.trim().toUpperCase(),
         whatsapp_number: form.whatsapp_number.trim().replace(/\D/g, ""),
         whatsapp_message: form.whatsapp_message.trim(),
       };
@@ -76,7 +79,7 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-4xl p-6">
       <h1 className="mb-2 text-2xl font-bold text-[var(--admin-navy)]">Site settings</h1>
       <p className="mb-6 text-sm text-[var(--admin-muted)]">
-        Manage Google Analytics and the WhatsApp contact button shown on the public site.
+        Manage Google Analytics, Google Ads, and the WhatsApp contact button shown on the public site.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -90,6 +93,18 @@ export default function SettingsPage() {
               value={form.google_analytics_id}
               onChange={(e) => setForm({ ...form, google_analytics_id: e.target.value })}
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-600">Google Ads tag ID</label>
+            <input
+              className={inputClass}
+              placeholder="AW-123456789"
+              value={form.google_ads_tag_id}
+              onChange={(e) => setForm({ ...form, google_ads_tag_id: e.target.value })}
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Enter the tag ID only (for example, AW-123456789), not the full script.
+            </p>
           </div>
         </div>
 

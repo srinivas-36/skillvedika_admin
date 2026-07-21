@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getBlogs, getCategories, getCourses, type CourseApi } from "@/lib/api";
 import { BookOpen, LayoutGrid, Newspaper, Sparkles, TrendingUp } from "lucide-react";
 import ApplicationCountsPanel from "./ApplicationCountsPanel";
@@ -103,20 +104,25 @@ export default async function AdminDashboardPage() {
               {categoryDistribution.map((item) => {
                 const widthPercent = Math.max(8, Math.round((item.count / maxCategoryCount) * 100));
                 return (
-                  <li key={item.categoryId} className="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-3">
-                    <div className="mb-2 flex items-center justify-between text-xs text-slate-600">
-                      <span className="truncate pr-3 font-semibold text-slate-700">{item.name}</span>
-                      <span className="shrink-0 rounded-md bg-white px-2 py-0.5 font-bold text-slate-800 ring-1 ring-slate-200">
-                        {item.count}
-                      </span>
-                    </div>
-                    <div className="h-2.5 rounded-full bg-slate-200/80">
-                      <div
-                        className="h-2.5 rounded-full bg-gradient-to-r from-[#4f46e5] via-[#3b82f6] to-[#06b6d4]"
-                        style={{ width: `${widthPercent}%` }}
-                        aria-label={`${item.name}: ${item.count} courses`}
-                      />
-                    </div>
+                  <li key={item.categoryId}>
+                    <Link
+                      href={`/admin/courses?category=${item.categoryId}`}
+                      className="block rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-3 transition hover:border-slate-300 hover:bg-white hover:shadow-sm"
+                    >
+                      <div className="mb-2 flex items-center justify-between text-xs text-slate-600">
+                        <span className="truncate pr-3 font-semibold text-slate-700">{item.name}</span>
+                        <span className="shrink-0 rounded-md bg-white px-2 py-0.5 font-bold text-slate-800 ring-1 ring-slate-200">
+                          {item.count}
+                        </span>
+                      </div>
+                      <div className="h-2.5 rounded-full bg-slate-200/80">
+                        <div
+                          className="h-2.5 rounded-full bg-gradient-to-r from-[#4f46e5] via-[#3b82f6] to-[#06b6d4]"
+                          style={{ width: `${widthPercent}%` }}
+                          aria-label={`${item.name}: ${item.count} courses`}
+                        />
+                      </div>
+                    </Link>
                   </li>
                 );
               })}
@@ -125,19 +131,32 @@ export default async function AdminDashboardPage() {
         </div>
 
         <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_14px_34px_-28px_rgba(15,23,42,0.55)]">
-          <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
-            Recent blog posts
-          </h3>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
+              Recent blog posts
+            </h3>
+            <Link
+              href="/admin/blog"
+              className="text-[11px] font-semibold text-[var(--admin-accent)] hover:underline"
+            >
+              View all
+            </Link>
+          </div>
           {recentBlogs.length === 0 ? (
             <p className="mt-4 text-sm text-[var(--admin-muted)]">No blog posts in the API yet.</p>
           ) : (
             <ul className="mt-4 space-y-3">
               {recentBlogs.map((post) => (
-                <li key={post.id} className="rounded-2xl border border-slate-200/70 bg-slate-50/75 p-3.5">
-                  <p className="line-clamp-1 text-sm font-semibold text-slate-900">{post.title}</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {post.author} · {post.read_time}
-                  </p>
+                <li key={post.id}>
+                  <Link
+                    href="/admin/blog"
+                    className="block rounded-2xl border border-slate-200/70 bg-slate-50/75 p-3.5 transition hover:border-slate-300 hover:bg-white hover:shadow-sm"
+                  >
+                    <p className="line-clamp-1 text-sm font-semibold text-slate-900">{post.title}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {post.author} · {post.read_time}
+                    </p>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -146,24 +165,37 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_14px_34px_-28px_rgba(15,23,42,0.55)]">
-        <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
-          Recent courses
-        </h3>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
+            Recent courses
+          </h3>
+          <Link
+            href="/admin/courses"
+            className="text-[11px] font-semibold text-[var(--admin-accent)] hover:underline"
+          >
+            View all
+          </Link>
+        </div>
         {recent.length === 0 ? (
           <p className="mt-4 text-sm text-[var(--admin-muted)]">No courses in the API yet.</p>
         ) : (
           <ul className="mt-4 divide-y divide-slate-200/80">
             {recent.map((c) => (
-              <li key={c.id} className="flex items-center justify-between gap-4 py-3 first:pt-0">
-                <div>
-                  <p className="font-semibold text-slate-900">{c.title}</p>
-                  <p className="text-xs text-slate-500">
-                    {c.duration} · {c.price} · ★ {Number(c.rating).toFixed(1)}
-                  </p>
-                </div>
-                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] text-slate-700 ring-1 ring-slate-200">
-                  {c.slug}
-                </span>
+              <li key={c.id}>
+                <Link
+                  href={`/admin/courses?category=${c.category}`}
+                  className="flex items-center justify-between gap-4 py-3 transition hover:bg-slate-50 first:pt-0"
+                >
+                  <div>
+                    <p className="font-semibold text-slate-900">{c.title}</p>
+                    <p className="text-xs text-slate-500">
+                      {c.duration} · {c.price} · ★ {Number(c.rating).toFixed(1)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] text-slate-700 ring-1 ring-slate-200">
+                    {c.slug}
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>

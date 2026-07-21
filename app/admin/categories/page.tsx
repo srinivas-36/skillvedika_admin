@@ -3,16 +3,21 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  AdminConfirmDialog,
   AdminIconActions,
   AdminModal,
+  AdminPagination,
   btnPrimary,
   btnSecondary,
   fieldLabel,
   inputClass,
 } from "@/components/admin/HomeEditorShell";
+import { parseApiErrorText } from "@/lib/cms-errors";
+import { parseListResponse } from "@/lib/api";
 
 const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
 const API = `${base}/api/categories/`;
+const PAGE_SIZE = 10;
 
 type Category = {
   id: number;
@@ -20,6 +25,7 @@ type Category = {
   slug: string;
   description: string;
   icon?: string | null;
+  is_active?: boolean;
 };
 
 const emptyForm = {
@@ -28,12 +34,6 @@ const emptyForm = {
   description: "",
   icon: "",
 };
-
-function matchesSearch(query: string, ...values: (string | number | null | undefined)[]) {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  return values.some((v) => String(v ?? "").toLowerCase().includes(q));
-}
 
 function slugify(name: string) {
   return name
@@ -57,6 +57,21 @@ function CategoriesAdminPageInner() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [toggleConfirm, setToggleConfirm] = useState<{
+    id: number;
+    name: string;
+    nextActive: boolean;
+  } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
 
   const editParam = searchParams.get("edit");
   const selectedEditId =
@@ -67,6 +82,14 @@ function CategoriesAdminPageInner() {
     setIgnoreEditQuery(false);
   }, [selectedEditId]);
 
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
   const clearEditQuery = () => {
     if (selectedEditId == null) return;
     setIgnoreEditQuery(true);
@@ -76,18 +99,31 @@ function CategoriesAdminPageInner() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch(API);
+      const qs = new URLSearchParams({
+        include_inactive: "1",
+        page: String(page),
+        page_size: String(PAGE_SIZE),
+      });
+      if (debouncedSearch.trim()) qs.set("search", debouncedSearch.trim());
+      const res = await fetch(`${API}?${qs.toString()}`);
       if (!res.ok) throw new Error(`Load failed (${res.status})`);
       const data = await res.json();
-      setRows(Array.isArray(data) ? data : []);
+      const parsed = parseListResponse<Category>(data);
+      setRows(parsed.results);
+      setTotalCount(parsed.count);
+      setTotalPages(Math.max(1, parsed.total_pages));
+      if (parsed.page !== page && parsed.total_pages > 0) {
+        setPage(parsed.page);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load categories");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, debouncedSearch]);
 
   useEffect(() => {
+    setLoading(true);
     void load();
   }, [load]);
 
@@ -96,17 +132,36 @@ function CategoriesAdminPageInner() {
     if (ignoreEditQuery) return;
     if (formModalOpen) return;
 
-    const cat = rows.find((c) => c.id === selectedEditId);
-    if (!cat) return;
-
-    setEditingId(cat.id);
-    setForm({
-      name: cat.name,
-      slug: cat.slug,
-      description: cat.description,
-      icon: cat.icon ?? "",
-    });
-    setFormModalOpen(true);
+    const openEdit = async () => {
+      const cat = rows.find((c) => c.id === selectedEditId);
+      if (cat) {
+        setEditingId(cat.id);
+        setForm({
+          name: cat.name,
+          slug: cat.slug,
+          description: cat.description,
+          icon: cat.icon ?? "",
+        });
+        setFormModalOpen(true);
+        return;
+      }
+      try {
+        const res = await fetch(`${API}${selectedEditId}/?include_inactive=1`);
+        if (!res.ok) return;
+        const data = (await res.json()) as Category;
+        setEditingId(data.id);
+        setForm({
+          name: data.name,
+          slug: data.slug,
+          description: data.description,
+          icon: data.icon ?? "",
+        });
+        setFormModalOpen(true);
+      } catch {
+        /* ignore */
+      }
+    };
+    void openEdit();
   }, [selectedEditId, rows, formModalOpen, ignoreEditQuery]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -162,7 +217,7 @@ function CategoriesAdminPageInner() {
     const payload = {
       name: form.name.trim(),
       slug,
-      description: form.description,
+      description: form.description.trim(),
       icon: form.icon.trim() || "",
     };
     try {
@@ -175,11 +230,7 @@ function CategoriesAdminPageInner() {
       });
       const raw = await res.text();
       if (!res.ok) {
-        try {
-          setSaveError(JSON.stringify(JSON.parse(raw), null, 2));
-        } catch {
-          setSaveError(raw || `Save failed (${res.status})`);
-        }
+        setSaveError(parseApiErrorText(raw, res.status));
         return;
       }
 
@@ -196,19 +247,23 @@ function CategoriesAdminPageInner() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (
-      !confirm(
-        "Delete this category permanently? Courses linked to it may block deletion. This cannot be undone.",
-      )
-    ) {
-      return;
-    }
+  const handleDelete = (category: Category) => {
+    setDeleteConfirm({ id: category.id, name: category.name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const { id } = deleteConfirm;
+    setDeletingId(id);
     setSaveError(null);
     try {
       const res = await fetch(`${API}${id}/`, { method: "DELETE" });
       if (!res.ok) {
-        setSaveError(`Delete failed (${res.status}). Remove or reassign courses first.`);
+        const raw = await res.text().catch(() => "");
+        setSaveError(
+          parseApiErrorText(raw, res.status) ||
+            "Delete failed. Remove or reassign courses linked to this category first.",
+        );
         return;
       }
       if (editingId === id) {
@@ -217,18 +272,53 @@ function CategoriesAdminPageInner() {
       if (selectedEditId === id) {
         clearEditQuery();
       }
+      setDeleteConfirm(null);
       await load();
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeletingId(null);
     }
   };
 
-  const filteredRows = rows.filter((c) =>
-    matchesSearch(searchQuery, c.id, c.name, c.slug, c.description, c.icon),
-  );
+  const handleToggleActive = (category: Category) => {
+    const nextActive = !(category.is_active !== false);
+    setToggleConfirm({
+      id: category.id,
+      name: category.name,
+      nextActive,
+    });
+  };
+
+  const confirmToggleActive = async () => {
+    if (!toggleConfirm) return;
+    const { id, nextActive } = toggleConfirm;
+    const action = nextActive ? "enable" : "disable";
+    setTogglingId(id);
+    setSaveError(null);
+    try {
+      const res = await fetch(`${API}${id}/`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: nextActive }),
+      });
+      if (!res.ok) {
+        setSaveError(`Could not ${action} category (${res.status})`);
+        return;
+      }
+      setToggleConfirm(null);
+      await load();
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : `Could not ${action} category`);
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   const editingCategoryName =
-    selectedEditId != null ? rows.find((c) => c.id === selectedEditId)?.name : null;
+    selectedEditId != null
+      ? rows.find((c) => c.id === selectedEditId)?.name
+      : null;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -241,7 +331,7 @@ function CategoriesAdminPageInner() {
           </p>
         ) : null}
         <p className="mt-1 text-sm text-[var(--admin-muted)]">
-          Used by course records and public /courses routes. Use edit/delete icons on each row.
+          Used by course records and public /courses routes. Use edit, disable (hide from site), or delete on each row.
         </p>
         {error ? (
           <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
@@ -249,9 +339,9 @@ function CategoriesAdminPageInner() {
           </p>
         ) : null}
         {saveError && !formModalOpen ? (
-          <pre className="mt-3 max-h-40 overflow-auto rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900 whitespace-pre-wrap">
+          <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
             {saveError}
-          </pre>
+          </p>
         ) : null}
       </div>
 
@@ -280,33 +370,60 @@ function CategoriesAdminPageInner() {
                   <th className="p-3 font-bold text-[var(--admin-navy)]">Slug</th>
                   <th className="min-w-[240px] p-3 font-bold text-[var(--admin-navy)]">Description</th>
                   <th className="p-3 font-bold text-[var(--admin-navy)]">Icon</th>
+                  <th className="p-3 font-bold text-[var(--admin-navy)]">Status</th>
                   <th className="p-3 font-bold text-[var(--admin-navy)]">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.map((c) => (
-                  <tr key={c.id} className="border-t border-slate-100 align-top hover:bg-slate-50/80">
+                {rows.map((c) => (
+                  <tr
+                    key={c.id}
+                    className={`border-t border-slate-100 align-top hover:bg-slate-50/80 ${
+                      c.is_active === false ? "bg-slate-50/60 opacity-80" : ""
+                    }`}
+                  >
                     <td className="p-3 font-mono text-xs">{c.id}</td>
                     <td className="p-3 font-semibold text-slate-900">{c.name}</td>
                     <td className="p-3 font-mono text-xs text-slate-600">{c.slug}</td>
                     <td className="p-3 text-slate-700 whitespace-pre-wrap break-words">{c.description}</td>
                     <td className="p-3 text-slate-600">{c.icon || "—"}</td>
                     <td className="p-3">
+                      {c.is_active === false ? (
+                        <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-700">
+                          Disabled
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
+                          Active
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3">
                       <AdminIconActions
                         onEdit={() => handleEdit(c)}
-                        onDelete={() => void handleDelete(c.id)}
+                        onToggleActive={() => void handleToggleActive(c)}
+                        isActive={c.is_active !== false}
+                        onDelete={() => handleDelete(c)}
                       />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {filteredRows.length === 0 ? (
+            {rows.length === 0 ? (
               <p className="p-8 text-center text-sm text-[var(--admin-muted)]">
                 {searchQuery ? "No categories match your search." : "No categories yet."}
               </p>
             ) : null}
           </div>
+          <AdminPagination
+            page={page}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            pageSize={PAGE_SIZE}
+            disabled={loading}
+            onPageChange={setPage}
+          />
         </>
       )}
 
@@ -332,9 +449,9 @@ function CategoriesAdminPageInner() {
       >
         <form id="category-modal-form" onSubmit={handleSubmit} className="space-y-4">
           {saveError ? (
-            <pre className="max-h-40 overflow-auto rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900 whitespace-pre-wrap">
+            <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
               {saveError}
-            </pre>
+            </p>
           ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
@@ -347,13 +464,14 @@ function CategoriesAdminPageInner() {
             </div>
           </div>
           <div>
-            <label className={fieldLabel}>Description</label>
+            <label className={fieldLabel}>Description (optional)</label>
             <textarea
               name="description"
               value={form.description}
               onChange={handleChange}
               className={`${inputClass} min-h-[88px] resize-y`}
               rows={3}
+              placeholder="Optional short description"
             />
           </div>
           <div>
@@ -368,6 +486,48 @@ function CategoriesAdminPageInner() {
           </div>
         </form>
       </AdminModal>
+
+      <AdminConfirmDialog
+        open={toggleConfirm != null}
+        title={toggleConfirm?.nextActive ? "Enable category?" : "Disable category?"}
+        message={
+          toggleConfirm ? (
+            toggleConfirm.nextActive ? (
+              <>
+                Enable <span className="font-semibold text-slate-900">{toggleConfirm.name}</span> so it
+                shows on the public site?
+              </>
+            ) : (
+              <>
+                Disable <span className="font-semibold text-slate-900">{toggleConfirm.name}</span> so it
+                and its courses are hidden from the public site?
+              </>
+            )
+          ) : null
+        }
+        confirmLabel={toggleConfirm?.nextActive ? "Confirm enable" : "Confirm disable"}
+        loading={togglingId != null}
+        onCancel={() => setToggleConfirm(null)}
+        onConfirm={() => void confirmToggleActive()}
+      />
+
+      <AdminConfirmDialog
+        open={deleteConfirm != null}
+        title="Delete category?"
+        message={
+          deleteConfirm ? (
+            <>
+              Delete <span className="font-semibold text-slate-900">{deleteConfirm.name}</span>{" "}
+              permanently? Courses linked to it may block deletion. This cannot be undone.
+            </>
+          ) : null
+        }
+        confirmLabel="Delete"
+        danger
+        loading={deletingId != null}
+        onCancel={() => setDeleteConfirm(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiUrl } from "@/lib/api";
 import { authHeadersBearer, getAccessToken } from "@/lib/auth";
 
@@ -75,9 +75,12 @@ function ExpandableMessage({ text }: { text?: string | null }) {
   );
 }
 
-export default function ApplicationsPage() {
+function ApplicationsPageContent() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabKey>("instructors");
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const initialTab: TabKey = tabParam === "students" ? "students" : "instructors";
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -88,6 +91,10 @@ export default function ApplicationsPage() {
     | { type: "instructor" | "student"; id: number; name: string }
     | null
   >(null);
+
+  useEffect(() => {
+    setActiveTab(tabParam === "students" ? "students" : "instructors");
+  }, [tabParam]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -261,7 +268,10 @@ export default function ApplicationsPage() {
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
-          onClick={() => setActiveTab("instructors")}
+          onClick={() => {
+            setActiveTab("instructors");
+            router.replace("/admin/leads?tab=instructors");
+          }}
           className={`${tabButtonClass} ${
             activeTab === "instructors"
               ? "bg-[var(--admin-accent)] text-white border-[var(--admin-accent)]"
@@ -272,7 +282,10 @@ export default function ApplicationsPage() {
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab("students")}
+          onClick={() => {
+            setActiveTab("students");
+            router.replace("/admin/leads?tab=students");
+          }}
           className={`${tabButtonClass} ${
             activeTab === "students"
               ? "bg-[var(--admin-accent)] text-white border-[var(--admin-accent)]"
@@ -517,5 +530,19 @@ export default function ApplicationsPage() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+export default function ApplicationsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-[1400px]">
+          <p className="text-sm text-[var(--admin-muted)]">Loading leads…</p>
+        </div>
+      }
+    >
+      <ApplicationsPageContent />
+    </Suspense>
   );
 }

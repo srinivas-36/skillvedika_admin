@@ -45,6 +45,7 @@ export type CategoryApi = {
   slug: string;
   description: string;
   icon?: string | null;
+  is_active?: boolean;
 };
 
 export type CourseApi = {
@@ -56,6 +57,7 @@ export type CourseApi = {
   price: string;
   rating: number;
   category: number;
+  is_active?: boolean;
 };
 
 export type BlogPostApi = {
@@ -69,16 +71,128 @@ export type BlogPostApi = {
   excerpt: string;
 };
 
-export async function getCategories(): Promise<CategoryApi[]> {
-  return fetchJson<CategoryApi[]>("/api/categories/");
+export type PaginatedResponse<T> = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  results: T[];
+};
+
+export type ListPageParams = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  category?: string | number;
+  includeInactive?: boolean;
+};
+
+function buildListQuery(params: ListPageParams = {}): string {
+  const qs = new URLSearchParams();
+  if (params.includeInactive) qs.set("include_inactive", "1");
+  if (params.page != null) qs.set("page", String(params.page));
+  if (params.pageSize != null) qs.set("page_size", String(params.pageSize));
+  if (params.search?.trim()) qs.set("search", params.search.trim());
+  if (params.category != null && params.category !== "") {
+    qs.set("category", String(params.category));
+  }
+  const query = qs.toString();
+  return query ? `?${query}` : "";
 }
 
-export async function getCourses(): Promise<CourseApi[]> {
-  return fetchJson<CourseApi[]>("/api/courses/");
+export function parseListResponse<T>(data: unknown): PaginatedResponse<T> {
+  if (data && typeof data === "object" && Array.isArray((data as PaginatedResponse<T>).results)) {
+    const p = data as PaginatedResponse<T>;
+    return {
+      count: Number(p.count) || 0,
+      next: p.next ?? null,
+      previous: p.previous ?? null,
+      page: Number(p.page) || 1,
+      page_size: Number(p.page_size) || (p.results?.length ?? 0),
+      total_pages: Number(p.total_pages) || 1,
+      results: Array.isArray(p.results) ? p.results : [],
+    };
+  }
+  const results = Array.isArray(data) ? (data as T[]) : [];
+  return {
+    count: results.length,
+    next: null,
+    previous: null,
+    page: 1,
+    page_size: results.length || 10,
+    total_pages: 1,
+    results,
+  };
 }
 
-export async function getBlogs(): Promise<BlogPostApi[]> {
-  return fetchJson<BlogPostApi[]>("/api/blog/");
+export async function getCategories(params?: ListPageParams): Promise<CategoryApi[]> {
+  const query = buildListQuery({ includeInactive: true, ...params });
+  // Without page params, API returns a bare array (full list).
+  if (params?.page == null && params?.pageSize == null) {
+    return fetchJson<CategoryApi[]>(`/api/categories/${query || "?include_inactive=1"}`);
+  }
+  const data = await fetchJson<unknown>(`/api/categories/${query}`);
+  return parseListResponse<CategoryApi>(data).results;
+}
+
+export async function getCategoriesPage(
+  params: ListPageParams = {},
+): Promise<PaginatedResponse<CategoryApi>> {
+  const query = buildListQuery({
+    includeInactive: true,
+    page: params.page ?? 1,
+    pageSize: params.pageSize ?? 10,
+    search: params.search,
+  });
+  const data = await fetchJson<unknown>(`/api/categories/${query}`);
+  return parseListResponse<CategoryApi>(data);
+}
+
+export async function getCourses(params?: ListPageParams): Promise<CourseApi[]> {
+  const query = buildListQuery({ includeInactive: true, ...params });
+  if (params?.page == null && params?.pageSize == null) {
+    return fetchJson<CourseApi[]>(`/api/courses/${query || "?include_inactive=1"}`);
+  }
+  const data = await fetchJson<unknown>(`/api/courses/${query}`);
+  return parseListResponse<CourseApi>(data).results;
+}
+
+export async function getCoursesPage(
+  params: ListPageParams = {},
+): Promise<PaginatedResponse<CourseApi>> {
+  const query = buildListQuery({
+    includeInactive: true,
+    page: params.page ?? 1,
+    pageSize: params.pageSize ?? 10,
+    search: params.search,
+    category: params.category,
+  });
+  const data = await fetchJson<unknown>(`/api/courses/${query}`);
+  return parseListResponse<CourseApi>(data);
+}
+
+export async function getBlogs(params?: ListPageParams): Promise<BlogPostApi[]> {
+  const query = buildListQuery(params ?? {});
+  if (params?.page == null && params?.pageSize == null) {
+    return fetchJson<BlogPostApi[]>(`/api/blog/${query}`);
+  }
+  const data = await fetchJson<unknown>(`/api/blog/${query}`);
+  return parseListResponse<BlogPostApi>(data).results;
+}
+
+export async function getBlogsPage(
+  params: ListPageParams = {},
+): Promise<PaginatedResponse<BlogPostApi>> {
+  const query = buildListQuery({
+    page: params.page ?? 1,
+    pageSize: params.pageSize ?? 10,
+    search: params.search,
+    category: params.category,
+  });
+  const data = await fetchJson<unknown>(`/api/blog/${query}`);
+  return parseListResponse<BlogPostApi>(data);
 }
 
 export async function createCourseApi(body: {

@@ -6,6 +6,7 @@ import FeaturesSection, { type FeatureItem } from "@/components/home/FeaturesSec
 import {
   HomeEditorShell,
   EditorPanel,
+  AdminConfirmDialog,
   fieldLabel,
   inputClass,
   textareaClass,
@@ -23,6 +24,11 @@ export default function AdminFeaturesPage() {
   const [savingCopy, setSavingCopy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    id: number;
+    label: string;
+  } | null>(null);
 
   const [heading, setHeading] = useState("");
   const [intro, setIntro] = useState("");
@@ -165,13 +171,20 @@ export default function AdminFeaturesPage() {
     }
   }
 
-  async function deleteFeature(id: number) {
-    if (!confirm("Delete this feature?")) return;
+  function requestDelete(item: FeatureItem) {
+    setDeleteConfirm({ id: item.id, label: item.title });
+  }
+
+  async function confirmDelete() {
+    if (!deleteConfirm) return;
+    const { id } = deleteConfirm;
     setError(null);
+    setMessage(null);
     if (!getAccessToken()) {
       router.replace("/admin");
       return;
     }
+    setDeletingId(id);
     try {
       const res = await fetch(apiUrl(`/api/home/features/${id}/`), {
         method: "DELETE",
@@ -182,13 +195,16 @@ export default function AdminFeaturesPage() {
         return;
       }
       if (!res.ok) {
-        setError("Delete failed.");
+        setError(parseApiError(await res.json().catch(() => ({}))) || "Delete failed.");
         return;
       }
+      setDeleteConfirm(null);
       await load();
       setMessage("Feature removed.");
     } catch {
       setError("Network error.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -252,7 +268,7 @@ export default function AdminFeaturesPage() {
               key={f.id}
               item={f}
               onSave={(patch) => patchFeature(f.id, patch)}
-              onDelete={() => deleteFeature(f.id)}
+              onDelete={() => requestDelete(f)}
             />
           ))}
         </div>
@@ -302,6 +318,24 @@ export default function AdminFeaturesPage() {
           ) : null}
         </div>
       </EditorPanel>
+
+      <AdminConfirmDialog
+        open={deleteConfirm != null}
+        title="Delete feature?"
+        message={
+          deleteConfirm ? (
+            <>
+              Delete <span className="font-semibold text-slate-900">{deleteConfirm.label}</span>{" "}
+              permanently? This cannot be undone.
+            </>
+          ) : null
+        }
+        confirmLabel="Delete"
+        danger
+        loading={deletingId != null}
+        onCancel={() => setDeleteConfirm(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </HomeEditorShell>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiUrl } from "@/lib/api";
 import { authHeadersBearer } from "@/lib/auth";
@@ -60,16 +61,31 @@ export default function ApplicationCountsPanel() {
 
   const applicationStats = useMemo(
     () => [
-      { label: "Total leads", value: instructorApps.length + studentApps.length },
-      { label: "Instructor forms", value: instructorApps.length },
-      { label: "Student forms", value: studentApps.length },
+      {
+        label: "Total leads",
+        value: instructorApps.length + studentApps.length,
+        href: "/admin/leads",
+      },
+      {
+        label: "Instructor forms",
+        value: instructorApps.length,
+        href: "/admin/leads?tab=instructors",
+      },
+      {
+        label: "Student forms",
+        value: studentApps.length,
+        href: "/admin/leads?tab=students",
+      },
       {
         label: "Pending",
-        value: [...instructorApps, ...studentApps].filter((a) => (a.status ?? "pending") === "pending").length,
+        value: [...instructorApps, ...studentApps].filter((a) => (a.status ?? "pending") === "pending")
+          .length,
+        href: "/admin/leads",
       },
       {
         label: "Approved",
         value: [...instructorApps, ...studentApps].filter((a) => a.status === "approved").length,
+        href: "/admin/leads",
       },
     ],
     [instructorApps, studentApps],
@@ -81,9 +97,12 @@ export default function ApplicationCountsPanel() {
     <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_14px_34px_-28px_rgba(15,23,42,0.55)]">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">Leads overview</h3>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600">
-          Live stats
-        </span>
+        <Link
+          href="/admin/leads"
+          className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-200"
+        >
+          View all
+        </Link>
       </div>
       {loading ? (
         <p className="mt-4 text-sm text-[var(--admin-muted)]">Loading lead counts...</p>
@@ -92,19 +111,24 @@ export default function ApplicationCountsPanel() {
           {applicationStats.map((item) => {
             const widthPercent = Math.max(10, Math.round((item.value / maxValue) * 100));
             return (
-              <li key={item.label} className="rounded-2xl border border-slate-200/75 bg-slate-50/70 px-4 py-3">
-                <div className="mb-2 flex items-center justify-between text-xs text-slate-600">
-                  <span className="font-semibold text-slate-700">{item.label}</span>
-                  <span className="rounded-md bg-white px-2 py-0.5 font-bold text-slate-800 ring-1 ring-slate-200">
-                    {item.value}
-                  </span>
-                </div>
-                <div className="h-2.5 rounded-full bg-slate-200/80">
-                  <div
-                    className="h-2.5 rounded-full bg-gradient-to-r from-[#4f46e5] via-[#3b82f6] to-[#06b6d4]"
-                    style={{ width: `${widthPercent}%` }}
-                  />
-                </div>
+              <li key={item.label}>
+                <Link
+                  href={item.href}
+                  className="block rounded-2xl border border-slate-200/75 bg-slate-50/70 px-4 py-3 transition hover:border-slate-300 hover:bg-white hover:shadow-sm"
+                >
+                  <div className="mb-2 flex items-center justify-between text-xs text-slate-600">
+                    <span className="font-semibold text-slate-700">{item.label}</span>
+                    <span className="rounded-md bg-white px-2 py-0.5 font-bold text-slate-800 ring-1 ring-slate-200">
+                      {item.value}
+                    </span>
+                  </div>
+                  <div className="h-2.5 rounded-full bg-slate-200/80">
+                    <div
+                      className="h-2.5 rounded-full bg-gradient-to-r from-[#4f46e5] via-[#3b82f6] to-[#06b6d4]"
+                      style={{ width: `${widthPercent}%` }}
+                    />
+                  </div>
+                </Link>
               </li>
             );
           })}

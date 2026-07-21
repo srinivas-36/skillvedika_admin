@@ -6,6 +6,7 @@ import WhyChooseSection, { type WhyChooseItem } from "@/components/home/WhyChoos
 import {
   HomeEditorShell,
   EditorPanel,
+  AdminConfirmDialog,
   fieldLabel,
   inputClass,
   textareaClass,
@@ -35,6 +36,11 @@ export default function AdminWhyChoosePage() {
   const [savingCopy, setSavingCopy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    id: number;
+    label: string;
+  } | null>(null);
 
   const [heading, setHeading] = useState("");
   const [intro, setIntro] = useState("");
@@ -176,12 +182,20 @@ export default function AdminWhyChoosePage() {
     }
   }
 
-  async function deleteItem(id: number) {
-    if (!confirm("Delete this item?")) return;
+  function requestDelete(item: WhyChooseItem) {
+    setDeleteConfirm({ id: item.id, label: item.title });
+  }
+
+  async function confirmDelete() {
+    if (!deleteConfirm) return;
+    const { id } = deleteConfirm;
     if (!getAccessToken()) {
       router.replace("/admin");
       return;
     }
+    setDeletingId(id);
+    setError(null);
+    setMessage(null);
     try {
       const res = await fetch(apiUrl(`/api/home/why-choose/${id}/`), {
         method: "DELETE",
@@ -192,13 +206,16 @@ export default function AdminWhyChoosePage() {
         return;
       }
       if (!res.ok) {
-        setError("Delete failed.");
+        setError(parseApiError(await res.json().catch(() => ({}))) || "Delete failed.");
         return;
       }
+      setDeleteConfirm(null);
       await load();
       setMessage("Removed.");
     } catch {
       setError("Network error.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -253,7 +270,7 @@ export default function AdminWhyChoosePage() {
       <EditorPanel title="Cards">
         <div className="space-y-5">
           {items.map((it) => (
-            <WhyRow key={it.id} item={it} onSave={(b) => patchItem(it.id, b)} onDelete={() => deleteItem(it.id)} />
+            <WhyRow key={it.id} item={it} onSave={(b) => patchItem(it.id, b)} onDelete={() => requestDelete(it)} />
           ))}
         </div>
         <form onSubmit={addItem} className="mt-8 border-t border-slate-700/70 pt-6">
@@ -292,6 +309,24 @@ export default function AdminWhyChoosePage() {
           ) : null}
         </div>
       </EditorPanel>
+
+      <AdminConfirmDialog
+        open={deleteConfirm != null}
+        title="Delete card?"
+        message={
+          deleteConfirm ? (
+            <>
+              Delete <span className="font-semibold text-slate-900">{deleteConfirm.label}</span>{" "}
+              permanently? This cannot be undone.
+            </>
+          ) : null
+        }
+        confirmLabel="Delete"
+        danger
+        loading={deletingId != null}
+        onCancel={() => setDeleteConfirm(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </HomeEditorShell>
   );
 }

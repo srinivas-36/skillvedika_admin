@@ -19,20 +19,16 @@ const nav = [
       { href: "/admin/home/seo", label: "SEO Section" },
     ],
   },
-  
   { label: "Courses" },
   { label: "Categories" },
-  { href: "/admin/coursespagecontent", label: "Courses Page Content" },
-  { href: "/admin/categorypagecontent", label: "Category Page Content" },
-  { href: "/admin/course-details", label: "Course Details" }, 
   { href: "/admin/settings", label: "Settings" },
-  
   { href: "/admin/blog", label: "Blog" },
-  { href: "/admin/instructor", label: "Instructor" },
   { href: "/admin/leads", label: "Leads" },
   {
     label: "Pages",
     subItems: [
+      { href: "/admin/coursespagecontent", label: "Courses Page Content" },
+      { href: "/admin/instructor", label: "Instructor Page" },
       { href: "/admin/pages/career-service", label: "Career Service Page" },
       { href: "/admin/pages/on-job-support", label: "On Job Support Page" },
       { href: "/admin/pages/corporate-training", label: "Corporate Training Page" },
@@ -43,11 +39,7 @@ const nav = [
       { href: "/admin/pages/disclaimer", label: "Disclaimer Page" },
       { href: "/admin/pages/editorial-policy", label: "Editorial Policy Page" },
     ],
-  
-  }
-  
-    
-  
+  },
 ];
 
 const linkBase =
@@ -78,11 +70,8 @@ export default function Sidebar() {
     Home: true,
     Courses: false,
     Categories: false,
-    CourseDetails: false,
     Blog: false,
-    Instructor: false,
     Pages: false,
-    
   });
   const [categories, setCategories] = useState<Category[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -94,8 +83,8 @@ export default function Sidebar() {
   const loadData = useCallback(async () => {
     try {
       const [catRes, courseRes] = await Promise.all([
-        fetch("/api/categories/"),
-        fetch("/api/courses/"),
+        fetch("/api/categories/?include_inactive=1"),
+        fetch("/api/courses/?include_inactive=1"),
       ]);
 
       const catJson = await catRes.json().catch(() => []);
@@ -140,13 +129,27 @@ export default function Sidebar() {
     // Open parent menus based on current path.
     const initialOpenMenus: Record<string, boolean> = {};
     if (pathname.startsWith("/admin/home/")) initialOpenMenus.Home = true;
-    if (pathname.startsWith("/admin/courses")) initialOpenMenus.Courses = true;
-    if (pathname.startsWith("/admin/categories")) initialOpenMenus.Categories = true;
-    if (pathname.startsWith("/admin/course-details")) initialOpenMenus.CourseDetails = true;
+    if (
+      pathname === "/admin/courses" ||
+      pathname.startsWith("/admin/course-details")
+    ) {
+      initialOpenMenus.Courses = true;
+    }
+    if (
+      pathname.startsWith("/admin/categories") ||
+      pathname.startsWith("/admin/categorypagecontent")
+    ) {
+      initialOpenMenus.Categories = true;
+    }
     if (pathname.startsWith("/admin/blog")) initialOpenMenus.Blog = true;
-    if (pathname.startsWith("/admin/instructor")) initialOpenMenus.Instructor = true;
-    if (pathname.startsWith("/admin/pages")) initialOpenMenus.Pages = true; 
-    setOpenMenus((prev) => ({ ...initialOpenMenus, ...prev }));
+    if (
+      pathname.startsWith("/admin/pages") ||
+      pathname.startsWith("/admin/instructor") ||
+      pathname.startsWith("/admin/coursespagecontent")
+    ) {
+      initialOpenMenus.Pages = true;
+    }
+    setOpenMenus((prev) => ({ ...prev, ...initialOpenMenus }));
   }, [pathname]);
 
   const courseCountsByCategory = useMemo(() => {
@@ -168,6 +171,7 @@ export default function Sidebar() {
         href: `/admin/courses?category=${cat.id}`,
         label: `${cat.name} (${courseCountsByCategory.get(cat.id) ?? 0})`,
       })),
+      { href: "/admin/course-details", label: "Course Details" },
     ];
   }, [sortedCategories, courseCountsByCategory]);
 
@@ -178,6 +182,7 @@ export default function Sidebar() {
         href: `/admin/categories?edit=${cat.id}`,
         label: cat.name,
       })),
+      { href: "/admin/categorypagecontent", label: "Category Page Content" },
     ];
   }, [sortedCategories]);
 
@@ -185,13 +190,23 @@ export default function Sidebar() {
   const activeCategoryEditId = searchParams.get("edit");
 
   const isActiveCourseSub = (href: string) => {
-    if (!pathname.startsWith("/admin/courses")) return false;
+    if (href === "/admin/course-details") {
+      return pathname === "/admin/course-details" || pathname.startsWith("/admin/course-details/");
+    }
+    // Exact courses list route only (do not match /admin/coursespagecontent).
+    if (pathname !== "/admin/courses") return false;
     if (href === "/admin/courses") return !activeCourseCategoryId;
     const m = href.match(/category=(\d+)/);
     return m ? String(m[1]) === String(activeCourseCategoryId ?? "") : false;
   };
 
   const isActiveCategorySub = (href: string) => {
+    if (href === "/admin/categorypagecontent") {
+      return (
+        pathname === "/admin/categorypagecontent" ||
+        pathname.startsWith("/admin/categorypagecontent/")
+      );
+    }
     if (!pathname.startsWith("/admin/categories")) return false;
     if (href === "/admin/categories") return !activeCategoryEditId;
     const m = href.match(/edit=(\d+)/);
@@ -209,9 +224,23 @@ export default function Sidebar() {
       : null;
 
   const isActiveMenuButton = (label: string) => {
-    if (label === "Courses") return pathname.startsWith("/admin/courses");
-    if (label === "Categories") return pathname.startsWith("/admin/categories");
+    if (label === "Courses") {
+      return pathname === "/admin/courses" || pathname.startsWith("/admin/course-details");
+    }
+    if (label === "Categories") {
+      return (
+        pathname.startsWith("/admin/categories") ||
+        pathname.startsWith("/admin/categorypagecontent")
+      );
+    }
     if (label === "Home") return pathname.startsWith("/admin/home/");
+    if (label === "Pages") {
+      return (
+        pathname.startsWith("/admin/pages") ||
+        pathname.startsWith("/admin/instructor") ||
+        pathname.startsWith("/admin/coursespagecontent")
+      );
+    }
     return false;
   };
 
@@ -285,9 +314,13 @@ export default function Sidebar() {
                             ? isActiveCategorySub(sub.href)
                               ? linkActive
                               : linkIdle
-                            : pathname.startsWith(sub.href)
-                              ? linkActive
-                              : linkIdle
+                            : label === "Pages"
+                              ? pathname === sub.href || pathname.startsWith(`${sub.href}/`)
+                                ? linkActive
+                                : linkIdle
+                              : pathname.startsWith(sub.href)
+                                ? linkActive
+                                : linkIdle
                       }`}
                     >
                       {sub.label}

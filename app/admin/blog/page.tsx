@@ -7,6 +7,8 @@ import {
   EditorPanel,
   AdminIconActions,
   AdminModal,
+  AdminConfirmDialog,
+  AdminPagination,
   btnPrimary,
   btnSecondary,
   fieldLabel,
@@ -14,9 +16,11 @@ import {
   textareaClass,
 } from "@/components/admin/HomeEditorShell";
 import TipTapEditor from "@/components/editor/TipTapEditor";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, parseListResponse } from "@/lib/api";
 import { authHeadersBearer, authHeadersJson, authHeadersMultipart, getAccessToken } from "@/lib/auth";
 import { parseApiError } from "@/lib/cms-errors";
+
+const PAGE_SIZE = 10;
 
 type Paragraph = { content: string };
 type Toc = { title: string };
@@ -157,28 +161,48 @@ export default function AdminBlogPage() {
     meta_keywords: "",
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    slug: string;
+    title: string;
+  } | null>(null);
 
-  const filteredBlogs = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return blogs;
-    return blogs.filter((b) =>
-      [b.id, b.slug, b.category, b.title, b.author, b.date, b.read_time, b.excerpt]
-        .some((v) => String(v ?? "").toLowerCase().includes(q)),
-    );
-  }, [blogs, searchQuery]);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      const qs = new URLSearchParams({
+        page: String(page),
+        page_size: String(PAGE_SIZE),
+      });
+      if (debouncedSearch.trim()) qs.set("search", debouncedSearch.trim());
+
       const [blogsRes, metaRes] = await Promise.all([
-        fetch(apiUrl("/api/blog/"), { cache: "no-store" }),
+        fetch(apiUrl(`/api/blog/?${qs.toString()}`), { cache: "no-store" }),
         fetch(apiUrl("/api/blog/meta-tags/"), { cache: "no-store" }),
       ]);
 
       if (!blogsRes.ok) throw new Error("load blogs failed");
-      const blogsData = (await blogsRes.json()) as Blog[];
-      setBlogs(Array.isArray(blogsData) ? blogsData : []);
+      const blogsData = await blogsRes.json();
+      const parsed = parseListResponse<Blog>(blogsData);
+      setBlogs(parsed.results);
+      setTotalCount(parsed.count);
+      setTotalPages(Math.max(1, parsed.total_pages));
+      if (parsed.page !== page && parsed.total_pages > 0) {
+        setPage(parsed.page);
+      }
 
       const metaData = (await metaRes.json().catch(() => ({}))) as BlogPageMeta;
       setPageMeta({
@@ -190,10 +214,12 @@ export default function AdminBlogPage() {
     } catch {
       setError("Could not load blogs.");
       setBlogs([]);
+      setTotalCount(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, debouncedSearch]);
 
   useEffect(() => {
     if (!getAccessToken()) {
@@ -335,8 +361,14 @@ export default function AdminBlogPage() {
     }
   }
 
-  async function handleDelete(slug: string) {
-    if (!confirm("Delete this blog post permanently? This cannot be undone.")) return;
+  function handleDelete(blog: Blog) {
+    setDeleteConfirm({ slug: blog.slug, title: blog.title });
+  }
+
+  async function confirmDelete() {
+    if (!deleteConfirm) return;
+    const { slug } = deleteConfirm;
+    setDeletingSlug(slug);
     setError(null);
     setMessage(null);
     try {
@@ -345,16 +377,19 @@ export default function AdminBlogPage() {
         headers: authHeadersBearer(),
       });
       if (!res.ok) {
-        setError("Could not delete blog.");
+        setError(parseApiError(await res.json().catch(() => ({}))) || "Could not delete blog.");
         return;
       }
       if (editingSlug === slug) {
         closeFormModal();
       }
+      setDeleteConfirm(null);
       setMessage("Blog deleted.");
       await load();
     } catch {
       setError("Could not delete blog.");
+    } finally {
+      setDeletingSlug(null);
     }
   }
 
@@ -583,7 +618,7 @@ export default function AdminBlogPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredBlogs.map((b) => (
+              {blogs.map((b) => (
                 <tr key={b.id} className="border-t border-slate-100 align-top hover:bg-slate-50/80">
                   <td className="p-3 font-mono text-xs text-slate-500">{b.id}</td>
                   <td className="p-3 font-semibold text-slate-900">{b.title}</td>
@@ -596,19 +631,27 @@ export default function AdminBlogPage() {
                   <td className="p-3">
                     <AdminIconActions
                       onEdit={() => startEdit(b)}
-                      onDelete={() => void handleDelete(b.slug)}
+                      onDelete={() => handleDelete(b)}
                     />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {filteredBlogs.length === 0 ? (
+          {blogs.length === 0 ? (
             <p className="p-8 text-center text-sm text-slate-500">
               {searchQuery ? "No blog posts match your search." : "No blog posts yet."}
             </p>
           ) : null}
         </div>
+        <AdminPagination
+          page={page}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          pageSize={PAGE_SIZE}
+          disabled={loading}
+          onPageChange={setPage}
+        />
       </EditorPanel>
 
       <AdminModal
@@ -629,6 +672,24 @@ export default function AdminBlogPage() {
       >
         {blogFormFields}
       </AdminModal>
+
+      <AdminConfirmDialog
+        open={deleteConfirm != null}
+        title="Delete blog post?"
+        message={
+          deleteConfirm ? (
+            <>
+              Delete <span className="font-semibold text-slate-900">{deleteConfirm.title}</span>{" "}
+              permanently? This cannot be undone.
+            </>
+          ) : null
+        }
+        confirmLabel="Delete"
+        danger
+        loading={deletingSlug != null}
+        onCancel={() => setDeleteConfirm(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </HomeEditorShell>
   );
 }

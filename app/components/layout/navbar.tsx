@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { clearStoredTokens, getAccessTokenClaims, getStoredAdminIdentifier } from "@/lib/auth";
+import { apiUrl } from "@/lib/api";
+import {
+  authHeadersBearer,
+  clearStoredTokens,
+  getAccessTokenClaims,
+  getStoredAdminIdentifier,
+} from "@/lib/auth";
 
 type AdminProfile = {
   displayName: string;
@@ -18,7 +25,7 @@ export default function Navbar() {
   });
   const [menuOpen, setMenuOpen] = useState(false);
 
-  useEffect(() => {
+  const applyFallbackProfile = useCallback(() => {
     const claims = getAccessTokenClaims();
     const storedIdentifier = (getStoredAdminIdentifier() ?? "").trim();
     const fallbackEmail = storedIdentifier.includes("@") ? storedIdentifier : "";
@@ -48,6 +55,49 @@ export default function Navbar() {
       email,
     });
   }, []);
+
+  const loadProfile = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl("/api/admin/profile/"), {
+        cache: "no-store",
+        headers: authHeadersBearer(),
+      });
+      if (!res.ok) {
+        applyFallbackProfile();
+        return;
+      }
+      const data = (await res.json().catch(() => null)) as {
+        username?: string;
+        email?: string;
+        first_name?: string;
+        last_name?: string;
+      } | null;
+      if (!data) {
+        applyFallbackProfile();
+        return;
+      }
+      const fullName = [data.first_name, data.last_name].filter(Boolean).join(" ").trim();
+      const username = typeof data.username === "string" ? data.username.trim() : "";
+      const email = typeof data.email === "string" ? data.email.trim() : "";
+      setProfile({
+        displayName: fullName || username || (email ? email.split("@")[0] : "Admin"),
+        email,
+      });
+    } catch {
+      applyFallbackProfile();
+    }
+  }, [applyFallbackProfile]);
+
+  useEffect(() => {
+    void loadProfile();
+    const onProfileUpdated = () => {
+      void loadProfile();
+    };
+    window.addEventListener("admin-profile-updated", onProfileUpdated);
+    return () => {
+      window.removeEventListener("admin-profile-updated", onProfileUpdated);
+    };
+  }, [loadProfile]);
 
   const initials = useMemo(() => {
     const cleaned = profile.displayName.trim();
@@ -81,10 +131,6 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-[var(--admin-border)] bg-white/95 px-6 shadow-sm backdrop-blur-sm">
-      {/* <div className="hidden text-sm font-semibold text-[var(--admin-navy)] md:block">
-        Control center
-      </div> */}
-
       <div className="flex flex-1 items-center justify-end gap-3">
         <div className="relative" ref={profileMenuRef}>
           <button
@@ -110,11 +156,25 @@ export default function Navbar() {
               className="absolute right-0 top-full mt-2 min-w-[220px] rounded-xl border border-[var(--admin-border)] bg-white p-2 shadow-lg"
               role="menu"
             >
-              {/* <div className="rounded-lg px-3 py-2">
-                <div className="text-xs font-medium uppercase tracking-wide text-[var(--admin-muted)]">Signed in as</div>
-                <div className="mt-1 text-sm font-semibold text-[var(--admin-navy)]">{profile.displayName}</div>
-                <div className="truncate text-xs text-[var(--admin-muted)]">{profile.email || "No email available"}</div>
-              </div> */}
+              <div className="rounded-lg px-3 py-2">
+                <div className="text-xs font-medium uppercase tracking-wide text-[var(--admin-muted)]">
+                  Signed in as
+                </div>
+                <div className="mt-1 text-sm font-semibold text-[var(--admin-navy)]">
+                  {profile.displayName}
+                </div>
+                <div className="truncate text-xs text-[var(--admin-muted)]">
+                  {profile.email || "No email available"}
+                </div>
+              </div>
+              <Link
+                href="/admin/profile"
+                onClick={() => setMenuOpen(false)}
+                className="mt-1 block w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-[var(--admin-navy)] transition hover:bg-[var(--admin-bg-soft)]"
+                role="menuitem"
+              >
+                My Profile
+              </Link>
               <button
                 type="button"
                 onClick={handleLogout}
@@ -126,15 +186,6 @@ export default function Navbar() {
             </div>
           ) : null}
         </div>
-        {/* <div className="hidden rounded-xl border border-[var(--admin-border)] bg-[var(--admin-bg-soft)] px-4 py-2 text-sm text-[var(--admin-muted)] md:block md:min-w-[200px]">
-          <span className="text-slate-400">Search…</span>
-        </div> */}
-        {/* <button
-          type="button"
-          className="rounded-xl border border-[var(--admin-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--admin-navy)] shadow-sm transition hover:border-[var(--admin-accent)]/40 hover:bg-[var(--admin-bg-soft)]"
-        >
-          Profile
-        </button> */}
       </div>
     </header>
   );

@@ -2,9 +2,11 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { HomeEditorShell, EditorPanel, AdminIconActions, AdminModal, btnPrimary, btnSecondary, fieldLabel, inputClass, textareaClass } from "@/components/admin/HomeEditorShell";
-import { apiUrl, getCategories, type CategoryApi } from "@/lib/api";
+import { HomeEditorShell, EditorPanel, AdminIconActions, AdminModal, AdminConfirmDialog, AdminPagination, btnPrimary, btnSecondary, fieldLabel, inputClass, textareaClass } from "@/components/admin/HomeEditorShell";
+import { apiUrl, getCategoriesPage, type CategoryApi } from "@/lib/api";
 import TipTapEditor from "@/components/editor/TipTapEditor";
+
+const PAGE_SIZE = 10;
 
 type FaqItem = { question: string; answer: string };
 type CtaButton = { text: string; link: string };
@@ -111,68 +113,107 @@ function AdminCategoryPageContentInner() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [selectedCategoryLabel, setSelectedCategoryLabel] = useState("");
   const [rowModal, setRowModal] = useState<RowModal>(null);
   const [contentModalOpen, setContentModalOpen] = useState(false);
   const [whyDraft, setWhyDraft] = useState("");
   const [ctaDraft, setCtaDraft] = useState<CtaButton>({ text: "", link: "" });
   const [faqDraft, setFaqDraft] = useState<FaqItem>({ question: "", answer: "" });
-
-  function matchesSearch(query: string, ...values: (string | number | null | undefined)[]) {
-    const q = query.trim().toLowerCase();
-    if (!q) return true;
-    return values.some((v) => String(v ?? "").toLowerCase().includes(q));
-  }
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    kind: "faq" | "why" | "cta";
+    index: number;
+    label: string;
+  } | null>(null);
 
   const sortedCategories = useMemo(() => {
     return [...categories].sort((a, b) => a.name.localeCompare(b.name));
   }, [categories]);
 
-  const filteredCategories = useMemo(() => {
-    return sortedCategories.filter((c) =>
-      matchesSearch(searchQuery, c.id, c.name, c.slug, c.description, c.icon),
-    );
-  }, [sortedCategories, searchQuery]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Load categories list for selector.
   useEffect(() => {
     let cancelled = false;
     async function loadCats() {
       try {
-        const data = await getCategories();
+        const data = await getCategoriesPage({
+          page,
+          pageSize: PAGE_SIZE,
+          search: debouncedSearch,
+        });
         if (cancelled) return;
-        setCategories(Array.isArray(data) ? data : []);
+        setCategories(data.results);
+        setTotalCount(data.count);
+        setTotalPages(Math.max(1, data.total_pages));
+        if (data.page !== page && data.total_pages > 0) setPage(data.page);
       } catch {
-        if (!cancelled) setCategories([]);
+        if (!cancelled) {
+          setCategories([]);
+          setTotalCount(0);
+          setTotalPages(1);
+        }
       }
     }
     void loadCats();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [page, debouncedSearch]);
 
   // Sync selected category with query param / first available.
   useEffect(() => {
-    if (sortedCategories.length === 0) {
-      setSelectedCategoryId(null);
+    if (selectedCategoryFromQuery != null) {
+      setSelectedCategoryId(selectedCategoryFromQuery);
       return;
     }
-    if (selectedCategoryFromQuery != null) {
-      const exists = sortedCategories.some((c) => c.id === selectedCategoryFromQuery);
-      if (exists) {
-        setSelectedCategoryId(selectedCategoryFromQuery);
-        return;
-      }
+    if (sortedCategories.length === 0) {
+      return;
     }
     setSelectedCategoryId((prev) => prev ?? sortedCategories[0]?.id ?? null);
   }, [sortedCategories, selectedCategoryFromQuery]);
+
+  useEffect(() => {
+    if (selectedCategoryId == null) {
+      setSelectedCategoryLabel("");
+      return;
+    }
+    const current = categories.find((c) => c.id === selectedCategoryId);
+    if (current) {
+      setSelectedCategoryLabel(current.name);
+      return;
+    }
+    let cancelled = false;
+    void fetch(apiUrl(`/api/categories/${selectedCategoryId}/?include_inactive=1`), {
+      cache: "no-store",
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: CategoryApi | null) => {
+        if (!cancelled) setSelectedCategoryLabel(data?.name ?? "");
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedCategoryLabel("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [categories, selectedCategoryId]);
 
   const loadContent = useCallback(async (categoryId: number) => {
     setLoading(true);
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(apiUrl(`/api/categories/${categoryId}/page-content/`), { cache: "no-store" });
+      const res = await fetch(apiUrl(`/api/categories/${categoryId}/page-content/?include_inactive=1`), { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
       if (res.status === 404) {
         setForm(emptyForm);
@@ -206,9 +247,12 @@ function AdminCategoryPageContentInner() {
   }
 
   function removeFaq(index: number) {
-    if (!confirm("Delete this FAQ item permanently? This cannot be undone.")) return;
-    setForm((prev) => ({ ...prev, faq_items: prev.faq_items.filter((_, i) => i !== index) }));
-    if (rowModal?.kind === "faq" && rowModal.index === index) setRowModal(null);
+    const item = form.faq_items[index];
+    setDeleteConfirm({
+      kind: "faq",
+      index,
+      label: item?.question?.trim() || `FAQ #${index + 1}`,
+    });
   }
 
   function addWhyPoint() {
@@ -217,9 +261,12 @@ function AdminCategoryPageContentInner() {
   }
 
   function removeWhyPoint(index: number) {
-    if (!confirm("Delete this feature point permanently? This cannot be undone.")) return;
-    setForm((prev) => ({ ...prev, why_points: prev.why_points.filter((_, i) => i !== index) }));
-    if (rowModal?.kind === "why" && rowModal.index === index) setRowModal(null);
+    const point = form.why_points[index];
+    setDeleteConfirm({
+      kind: "why",
+      index,
+      label: String(point ?? "").trim().slice(0, 60) || `Feature point #${index + 1}`,
+    });
   }
 
   function addCtaButton() {
@@ -228,9 +275,28 @@ function AdminCategoryPageContentInner() {
   }
 
   function removeCtaButton(index: number) {
-    if (!confirm("Delete this CTA button permanently? This cannot be undone.")) return;
-    setForm((prev) => ({ ...prev, cta_buttons: prev.cta_buttons.filter((_, i) => i !== index) }));
-    if (rowModal?.kind === "cta" && rowModal.index === index) setRowModal(null);
+    const btn = form.cta_buttons[index];
+    setDeleteConfirm({
+      kind: "cta",
+      index,
+      label: btn?.text?.trim() || `CTA button #${index + 1}`,
+    });
+  }
+
+  function confirmLocalDelete() {
+    if (!deleteConfirm) return;
+    const { kind, index } = deleteConfirm;
+    if (kind === "faq") {
+      setForm((prev) => ({ ...prev, faq_items: prev.faq_items.filter((_, i) => i !== index) }));
+      if (rowModal?.kind === "faq" && rowModal.index === index) setRowModal(null);
+    } else if (kind === "why") {
+      setForm((prev) => ({ ...prev, why_points: prev.why_points.filter((_, i) => i !== index) }));
+      if (rowModal?.kind === "why" && rowModal.index === index) setRowModal(null);
+    } else {
+      setForm((prev) => ({ ...prev, cta_buttons: prev.cta_buttons.filter((_, i) => i !== index) }));
+      if (rowModal?.kind === "cta" && rowModal.index === index) setRowModal(null);
+    }
+    setDeleteConfirm(null);
   }
 
   function openCategoryContent(categoryId: number) {
@@ -365,14 +431,11 @@ function AdminCategoryPageContentInner() {
   // Open content modal when arriving via ?category=ID
   useEffect(() => {
     if (selectedCategoryFromQuery == null) return;
-    if (!sortedCategories.some((c) => c.id === selectedCategoryFromQuery)) return;
     setContentModalOpen(true);
-  }, [selectedCategoryFromQuery, sortedCategories]);
+  }, [selectedCategoryFromQuery]);
 
   const selectedCategoryName =
-    selectedCategoryId == null
-      ? null
-      : sortedCategories.find((c) => c.id === selectedCategoryId)?.name;
+    selectedCategoryId == null ? null : selectedCategoryLabel || `Category #${selectedCategoryId}`;
 
   const categoryContentFields = (
     <div className="space-y-8">
@@ -580,7 +643,7 @@ function AdminCategoryPageContentInner() {
               </tr>
             </thead>
             <tbody>
-              {filteredCategories.map((c) => (
+              {sortedCategories.map((c) => (
                 <tr
                   key={c.id}
                   className={`border-t border-slate-100 align-top hover:bg-slate-50/80 ${selectedCategoryId === c.id ? "bg-amber-50/60" : ""}`}
@@ -600,10 +663,18 @@ function AdminCategoryPageContentInner() {
               ))}
             </tbody>
           </table>
-          {filteredCategories.length === 0 ? (
+          {sortedCategories.length === 0 ? (
             <p className="p-6 text-center text-sm text-slate-500">No categories match your search.</p>
           ) : null}
         </div>
+        <AdminPagination
+          page={page}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          pageSize={PAGE_SIZE}
+          disabled={loading}
+          onPageChange={setPage}
+        />
       </EditorPanel>
 
       <AdminModal
@@ -721,6 +792,29 @@ function AdminCategoryPageContentInner() {
           </div>
         ) : null}
       </AdminModal>
+
+      <AdminConfirmDialog
+        open={deleteConfirm != null}
+        title={
+          deleteConfirm?.kind === "faq"
+            ? "Delete FAQ?"
+            : deleteConfirm?.kind === "why"
+              ? "Delete feature point?"
+              : "Delete CTA button?"
+        }
+        message={
+          deleteConfirm ? (
+            <>
+              Delete <span className="font-semibold text-slate-900">{deleteConfirm.label}</span>? This
+              cannot be undone until you save (or discard) the page content.
+            </>
+          ) : null
+        }
+        confirmLabel="Delete"
+        danger
+        onCancel={() => setDeleteConfirm(null)}
+        onConfirm={confirmLocalDelete}
+      />
     </HomeEditorShell>
   );
 }

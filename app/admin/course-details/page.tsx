@@ -1,19 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   HomeEditorShell,
   EditorPanel,
   AdminIconActions,
   AdminModal,
+  AdminConfirmDialog,
+  AdminPagination,
   btnPrimary,
   btnSecondary,
   fieldLabel,
   inputClass,
   textareaClass,
 } from "@/components/admin/HomeEditorShell";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, getCoursesPage } from "@/lib/api";
 import { authHeadersBearer, authHeadersJson, getAccessToken } from "@/lib/auth";
 import { parseApiError } from "@/lib/cms-errors";
 import TipTapEditor from "@/components/editor/TipTapEditor";
@@ -22,6 +24,7 @@ type Course = { id: number; title: string; slug: string };
 type AnyObj = Record<string, unknown>;
 type InputType = "text" | "textarea" | "date" | "checkbox";
 type Category = { id: number; name: string };
+const COURSE_PAGE_SIZE = 10;
 
 type SectionMeta = {
   about_heading?: string;
@@ -180,6 +183,12 @@ export default function AdminCourseDetailsPage() {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    section: SectionName;
+    itemId: number;
+    label: string;
+  } | null>(null);
   const [seoForm, setSeoForm] = useState({
     seo_meta_title: "",
     seo_meta_description: "",
@@ -246,6 +255,11 @@ export default function AdminCourseDetailsPage() {
     category: 0,
   });
   const [courseSearchQuery, setCourseSearchQuery] = useState("");
+  const [debouncedCourseSearch, setDebouncedCourseSearch] = useState("");
+  const [coursePage, setCoursePage] = useState(1);
+  const [courseTotalCount, setCourseTotalCount] = useState(0);
+  const [courseTotalPages, setCourseTotalPages] = useState(1);
+  const [loadingCourses, setLoadingCourses] = useState(false);
   const [sectionSearchQuery, setSectionSearchQuery] = useState("");
   const [itemModalSection, setItemModalSection] = useState<SectionName | null>(null);
   const [savingSectionItem, setSavingSectionItem] = useState(false);
@@ -279,6 +293,41 @@ export default function AdminCourseDetailsPage() {
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedCourseSearch(courseSearchQuery);
+      setCoursePage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [courseSearchQuery]);
+
+  const loadCoursesList = useCallback(async () => {
+    setLoadingCourses(true);
+    try {
+      const data = await getCoursesPage({
+        page: coursePage,
+        pageSize: COURSE_PAGE_SIZE,
+        search: debouncedCourseSearch,
+      });
+      setCourses(data.results);
+      setCourseTotalCount(data.count);
+      setCourseTotalPages(Math.max(1, data.total_pages));
+      if (data.page !== coursePage && data.total_pages > 0) {
+        setCoursePage(data.page);
+      }
+      setSelectedSlug((current) => current || data.results[0]?.slug || "");
+      return data.results;
+    } catch {
+      setCourses([]);
+      setCourseTotalCount(0);
+      setCourseTotalPages(1);
+      setError("Could not load courses.");
+      return [];
+    } finally {
+      setLoadingCourses(false);
+    }
+  }, [coursePage, debouncedCourseSearch]);
 
   function beginAddItem() {
     setMessage(null);
@@ -339,16 +388,9 @@ export default function AdminCourseDetailsPage() {
     async function init() {
       setLoading(true);
       try {
-        const [coursesRes, categoriesRes] = await Promise.all([
-          fetch(apiUrl("/api/courses/"), { cache: "no-store" }),
-          fetch(apiUrl("/api/categories/"), { cache: "no-store" }),
-        ]);
-        if (!coursesRes.ok) throw new Error("courses load failed");
-        const coursesData = (await coursesRes.json()) as Course[];
-        const list = Array.isArray(coursesData) ? coursesData : [];
-        setCourses(list);
-        if (list[0]?.slug) setSelectedSlug(list[0].slug);
-
+        const categoriesRes = await fetch(apiUrl("/api/categories/?include_inactive=1"), {
+          cache: "no-store",
+        });
         if (categoriesRes.ok) {
           const categoriesData = (await categoriesRes.json()) as Category[];
           const cats = Array.isArray(categoriesData) ? categoriesData : [];
@@ -369,6 +411,11 @@ export default function AdminCourseDetailsPage() {
 
     void init();
   }, [router]);
+
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    void loadCoursesList();
+  }, [loadCoursesList]);
 
   async function createCourse() {
     setError(null);
@@ -431,10 +478,7 @@ export default function AdminCourseDetailsPage() {
       }));
 
       // refresh course list and select the new course
-      const coursesRes = await fetch(apiUrl("/api/courses/"), { cache: "no-store" });
-      const coursesData = (await coursesRes.json().catch(() => [])) as Course[];
-      const list = Array.isArray(coursesData) ? coursesData : [];
-      setCourses(list);
+      await loadCoursesList();
       if (createdSlug) setSelectedSlug(createdSlug);
     } catch {
       setError("Could not create course.");
@@ -740,11 +784,24 @@ export default function AdminCourseDetailsPage() {
     setItemModalSection(section);
   }
 
-  async function handleDelete(section: SectionName, itemId: number) {
-    if (!confirm("Delete this item permanently? This cannot be undone.")) return;
+  function handleDelete(section: SectionName, itemId: number, label?: string) {
+    setDeleteConfirm({
+      section,
+      itemId,
+      label: label?.trim() || `item #${itemId}`,
+    });
+  }
+
+  async function confirmDelete() {
+    if (!deleteConfirm) return;
+    const { section, itemId } = deleteConfirm;
+    setDeleting(true);
     setError(null);
     setMessage(null);
-    if (!selectedSlug) return;
+    if (!selectedSlug) {
+      setDeleting(false);
+      return;
+    }
     try {
       const res = await fetch(
         apiUrl(`/api/course-details/course/${selectedSlug}/${section}/${itemId}/`),
@@ -754,7 +811,7 @@ export default function AdminCourseDetailsPage() {
         }
       );
       if (!res.ok) {
-        setError("Could not delete item.");
+        setError(parseApiError(await res.json().catch(() => ({}))) || "Could not delete item.");
         return;
       }
       if (editingBySection[section] === itemId) {
@@ -762,10 +819,13 @@ export default function AdminCourseDetailsPage() {
         setFormBySection((prev) => ({ ...prev, [section]: emptyFormFor(section) }));
         setItemModalSection((current) => (current === section ? null : current));
       }
+      setDeleteConfirm(null);
       setMessage("Item deleted.");
       await loadCourseDetails(selectedSlug);
     } catch {
       setError("Could not delete item.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -807,9 +867,7 @@ export default function AdminCourseDetailsPage() {
               </tr>
             </thead>
             <tbody>
-              {courses
-                .filter((c) => matchesSearch(courseSearchQuery, c.id, c.title, c.slug))
-                .map((c) => (
+              {courses.map((c) => (
                   <tr
                     key={c.id}
                     className={`border-t border-slate-100 align-top hover:bg-slate-50/80 ${selectedSlug === c.slug ? "bg-amber-50/60" : ""}`}
@@ -828,10 +886,18 @@ export default function AdminCourseDetailsPage() {
                       />
                     </td>
                   </tr>
-                ))}
+              ))}
             </tbody>
           </table>
         </div>
+        <AdminPagination
+          page={coursePage}
+          totalPages={courseTotalPages}
+          totalCount={courseTotalCount}
+          pageSize={COURSE_PAGE_SIZE}
+          disabled={loadingCourses}
+          onPageChange={setCoursePage}
+        />
         <div className="mt-4 flex flex-wrap gap-2 justify-end">
           <button
             type="button"
@@ -1167,7 +1233,13 @@ export default function AdminCourseDetailsPage() {
                             <td className="p-3">
                               <AdminIconActions
                                 onEdit={() => startEdit(section, item)}
-                                onDelete={() => void handleDelete(section, Number(item.id))}
+                                onDelete={() =>
+                                  handleDelete(
+                                    section,
+                                    Number(item.id),
+                                    String(item.name ?? item.title ?? item.question ?? item.role ?? ""),
+                                  )
+                                }
                               />
                             </td>
                           </tr>
@@ -1297,6 +1369,24 @@ export default function AdminCourseDetailsPage() {
           </form>
         </AdminModal>
       ) : null}
+
+      <AdminConfirmDialog
+        open={deleteConfirm != null}
+        title="Delete item?"
+        message={
+          deleteConfirm ? (
+            <>
+              Delete <span className="font-semibold text-slate-900">{deleteConfirm.label}</span>{" "}
+              permanently? This cannot be undone.
+            </>
+          ) : null
+        }
+        confirmLabel="Delete"
+        danger
+        loading={deleting}
+        onCancel={() => setDeleteConfirm(null)}
+        onConfirm={() => void confirmDelete()}
+      />
 
       {/* Course preview panel removed intentionally. */}
     </HomeEditorShell>
