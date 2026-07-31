@@ -98,6 +98,7 @@ type FieldDef = {
   key: string;
   label: string;
   type?: InputType;
+  optional?: boolean;
 };
 
 const SECTION_FIELDS: Record<SectionName, FieldDef[]> = {
@@ -122,9 +123,11 @@ const SECTION_FIELDS: Record<SectionName, FieldDef[]> = {
     { key: "range", label: "Salary Range" },
   ],
   "placement-support": [
+    { key: "heading", label: "Item Heading (optional)", optional: true },
     { key: "content", label: "Content", type: "textarea" },
   ],
   "corporate-training": [
+    { key: "heading", label: "Item Heading (optional)", optional: true },
     { key: "content", label: "Content", type: "textarea" },
   ],
   faqs: [
@@ -731,7 +734,7 @@ export default function AdminCourseDetailsPage() {
     }, {});
 
     for (const field of activeFields) {
-      if (field.type === "checkbox") continue;
+      if (field.type === "checkbox" || field.optional) continue;
       const value = String(payload[field.key] ?? "").trim();
       if (!value) {
         setError(`${field.label} is required.`);

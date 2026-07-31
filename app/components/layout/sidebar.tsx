@@ -11,6 +11,7 @@ const nav = [
     subItems: [
       { href: "/admin/home/hero", label: "Hero Section" },
       { href: "/admin/home/branding", label: "Logo & Branding" },
+      { href: "/admin/home/footer", label: "Footer" },
       { href: "/admin/home/featured", label: "Featured Section" },
       { href: "/admin/home/jobprogram", label: "Job Program Section" },
       { href: "/admin/home/whychoose", label: "Why Choose Section" },

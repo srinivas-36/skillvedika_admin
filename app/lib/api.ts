@@ -58,6 +58,7 @@ export type CourseApi = {
   rating: number;
   category: number;
   is_active?: boolean;
+  is_trending?: boolean;
 };
 
 export type BlogPostApi = {

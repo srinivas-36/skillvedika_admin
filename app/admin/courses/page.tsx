@@ -29,6 +29,8 @@ type Course = {
   category: number;
   category_name?: string;
   is_active?: boolean;
+  is_trending?: boolean;
+  image?: string | null;
 };
 
 type Category = {
@@ -47,6 +49,8 @@ const emptyForm = {
   price: "",
   rating: 0,
   category: 0,
+  is_trending: false,
+  image: null as string | null,
 };
 
 function slugify(title: string) {
@@ -70,6 +74,8 @@ function CoursesAdminPageContent() {
   const [form, setForm] = useState({ ...emptyForm });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formModalOpen, setFormModalOpen] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -174,18 +180,24 @@ function CoursesAdminPageContent() {
     setFormModalOpen(false);
     setEditingId(null);
     setSaveError(null);
+    setImageFile(null);
+    setRemoveImage(false);
     setForm({ ...emptyForm, category: defaultCategoryId });
   }
 
   function startAdd() {
     setEditingId(null);
     setSaveError(null);
+    setImageFile(null);
+    setRemoveImage(false);
     setForm({ ...emptyForm, category: defaultCategoryId });
     setFormModalOpen(true);
   }
 
   function handleEdit(course: Course) {
     setSaveError(null);
+    setImageFile(null);
+    setRemoveImage(false);
     setForm({
       title: course.title,
       slug: course.slug,
@@ -194,6 +206,8 @@ function CoursesAdminPageContent() {
       price: course.price,
       rating: course.rating,
       category: course.category,
+      is_trending: Boolean(course.is_trending),
+      image: course.image ?? null,
     });
     setEditingId(course.id);
     setFormModalOpen(true);
@@ -210,25 +224,44 @@ function CoursesAdminPageContent() {
       setSaving(false);
       return;
     }
-    const payload = {
-      title: form.title.trim(),
-      slug,
-      description: form.description,
-      duration: form.duration.trim(),
-      price: form.price.trim(),
-      rating: form.rating ? Number(form.rating) : 0,
-      category: Number(form.category),
-    };
 
     try {
       const url = editingId ? `${API}${editingId}/` : API;
       const method = editingId ? "PUT" : "POST";
 
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      let res: Response;
+      if (imageFile) {
+        const fd = new FormData();
+        fd.append("title", form.title.trim());
+        fd.append("slug", slug);
+        fd.append("description", form.description);
+        fd.append("duration", form.duration.trim());
+        fd.append("price", form.price.trim());
+        fd.append("rating", String(form.rating ? Number(form.rating) : 0));
+        fd.append("category", String(Number(form.category)));
+        fd.append("is_trending", form.is_trending ? "true" : "false");
+        fd.append("image", imageFile);
+        res = await fetch(url, { method, body: fd });
+      } else {
+        const payload: Record<string, unknown> = {
+          title: form.title.trim(),
+          slug,
+          description: form.description,
+          duration: form.duration.trim(),
+          price: form.price.trim(),
+          rating: form.rating ? Number(form.rating) : 0,
+          category: Number(form.category),
+          is_trending: Boolean(form.is_trending),
+        };
+        if (removeImage) {
+          payload.image = null;
+        }
+        res = await fetch(url, {
+          method: removeImage && editingId ? "PATCH" : method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
 
       const raw = await res.text();
       if (!res.ok) {
@@ -325,7 +358,7 @@ function CoursesAdminPageContent() {
           </p>
         ) : null}
         <p className="mt-1 text-sm text-[var(--admin-muted)]">
-          All courses are listed below. Use edit to update, disable to hide from the site, or delete to remove permanently.
+          All courses are listed below. Use edit to update, mark as trending for the home page Trending tab, disable to hide from the site, or delete to remove permanently.
         </p>
         {error ? (
           <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
@@ -367,6 +400,7 @@ function CoursesAdminPageContent() {
                   <th className="whitespace-nowrap p-3 font-bold text-[var(--admin-navy)]">Price</th>
                   <th className="whitespace-nowrap p-3 font-bold text-[var(--admin-navy)]">Rating</th>
                   <th className="whitespace-nowrap p-3 font-bold text-[var(--admin-navy)]">Category</th>
+                  <th className="whitespace-nowrap p-3 font-bold text-[var(--admin-navy)]">Trending</th>
                   <th className="whitespace-nowrap p-3 font-bold text-[var(--admin-navy)]">Status</th>
                   <th className="whitespace-nowrap p-3 font-bold text-[var(--admin-navy)]">Actions</th>
                 </tr>
@@ -387,6 +421,15 @@ function CoursesAdminPageContent() {
                     <td className="p-3 text-slate-600">{c.price || "—"}</td>
                     <td className="p-3 text-slate-600">{c.rating}</td>
                     <td className="p-3 text-slate-600">{c.category_name ?? c.category}</td>
+                    <td className="p-3">
+                      {c.is_trending ? (
+                        <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-sky-700 ring-1 ring-sky-200">
+                          Trending
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
+                    </td>
                     <td className="p-3">
                       {c.is_active === false ? (
                         <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-700">
@@ -546,6 +589,67 @@ function CoursesAdminPageContent() {
                 )}
               </select>
             </div>
+          </div>
+          <label className="flex items-start gap-3 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-bg-soft)] px-4 py-3">
+            <input
+              type="checkbox"
+              checked={Boolean(form.is_trending)}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, is_trending: e.target.checked }))
+              }
+              className="mt-1 h-4 w-4 rounded border-slate-300 text-[#2f5fa8] focus:ring-[#2f5fa8]"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-[var(--admin-navy)]">
+                Trending course
+              </span>
+              <span className="mt-0.5 block text-xs text-[var(--admin-muted)]">
+                Show this course under the Trending tab on the home page.
+              </span>
+            </span>
+          </label>
+          <div>
+            <label className={fieldLabel}>Course image</label>
+            <p className="mb-2 text-xs text-[var(--admin-muted)]">
+              Shown on the home page course cards. Upload JPG/PNG/WebP.
+            </p>
+            {form.image && !removeImage ? (
+              <div className="mb-3 flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={form.image}
+                  alt="Course"
+                  className="h-20 w-32 rounded-lg border border-slate-200 object-cover"
+                />
+                <button
+                  type="button"
+                  className={btnSecondary}
+                  onClick={() => {
+                    setRemoveImage(true);
+                    setImageFile(null);
+                    setForm((prev) => ({ ...prev, image: null }));
+                  }}
+                >
+                  Remove image
+                </button>
+              </div>
+            ) : null}
+            <input
+              type="file"
+              accept="image/*"
+              className={inputClass}
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null;
+                setImageFile(file);
+                setRemoveImage(false);
+                if (file) {
+                  setForm((prev) => ({
+                    ...prev,
+                    image: URL.createObjectURL(file),
+                  }));
+                }
+              }}
+            />
           </div>
         </form>
       </AdminModal>
